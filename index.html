@@ -361,7 +361,6 @@
             display: block;
             overflow-x: auto;
         }
-        /* 代码块复制按钮样式 */
         .copy-code-btn {
             position: absolute;
             top: 8px;
@@ -734,8 +733,8 @@
         </div>
         <div class="chat-container" id="chatContainer">
             <div class="welcome-placeholder" id="welcomeMsg">
-                <h2></h2>
-                <p style="color: var(--text-secondary);"></p>
+                <h2>🤖 你好，我是本地模型</h2>
+                <p style="color: var(--text-secondary);">支持文件上传、LaTeX公式、语音播报<br>💡 手机端：点击消息显示操作按钮 | 长按可复制/播报 | 右滑打开侧边栏<br>📋 代码块右上角有复制按钮，一键复制代码<br>📐 支持LaTeX公式：行内公式 $E = mc^2$，块级公式 $$\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$$</p>
             </div>
         </div>
         <div class="input-area" id="inputArea">
@@ -844,23 +843,41 @@
         const sidebarEl = document.getElementById('sidebar');
         const attachmentArea = document.getElementById('attachmentArea');
         
+        // KaTeX 渲染配置
+        const KATEX_DELIMITERS = [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ];
+        
+        function renderMath(element) {
+            if (typeof renderMathInElement !== 'undefined' && element) {
+                try {
+                    renderMathInElement(element, {
+                        delimiters: KATEX_DELIMITERS,
+                        throwOnError: false,
+                        errorCallback: (err, math) => {
+                            console.warn('LaTeX渲染失败:', math, err.message);
+                        }
+                    });
+                } catch(e) {
+                    console.error('KaTeX渲染错误:', e);
+                }
+            }
+        }
+        
         // ==================== 代码块复制功能 ====================
         function addCopyButtonsToCodeBlocks() {
             const contentDivs = document.querySelectorAll('.content');
             contentDivs.forEach(contentDiv => {
                 const preElements = contentDiv.querySelectorAll('pre');
                 preElements.forEach(pre => {
-                    // 避免重复添加按钮
                     if (pre.querySelector('.copy-code-btn')) return;
-                    
                     const codeBlock = pre.querySelector('code');
                     if (!codeBlock) return;
-                    
                     const copyBtn = document.createElement('button');
                     copyBtn.className = 'copy-code-btn';
                     copyBtn.innerHTML = '📋 复制';
                     copyBtn.setAttribute('aria-label', '复制代码');
-                    
                     copyBtn.onclick = async (e) => {
                         e.stopPropagation();
                         const codeText = codeBlock.textContent || '';
@@ -877,14 +894,12 @@
                             showToast('复制失败，请手动选择复制');
                         }
                     };
-                    
                     pre.style.position = 'relative';
                     pre.appendChild(copyBtn);
                 });
             });
         }
         
-        // 在渲染消息后调用，确保代码块复制按钮生效
         function attachCopyButtons() {
             setTimeout(() => {
                 addCopyButtonsToCodeBlocks();
@@ -915,35 +930,60 @@
             }
         });
         
-        // ==================== 键盘处理 ====================
+        // ==================== 键盘处理 (修复遮挡问题) ====================
+        let originalInputPaddingBottom = '';
+        let originalContainerPaddingBottom = '';
+        let isKeyboardVisible = false;
+        
         function setupKeyboardHandlers() {
-            if (!window.visualViewport) return;
-            let originalPaddingBottom = '';
-            let originalContainerPaddingBottom = '';
+            const inputArea = document.getElementById('inputArea');
+            const chatContainerEl = document.getElementById('chatContainer');
+            if (!inputArea) return;
             
-            window.visualViewport.addEventListener('resize', () => {
-                const viewport = window.visualViewport;
-                const windowHeight = window.innerHeight;
-                const keyboardHeight = windowHeight - viewport.height;
-                const inputArea = document.getElementById('inputArea');
-                const chatContainer = document.getElementById('chatContainer');
-                
-                if (keyboardHeight > 100) {
-                    if (inputArea) {
-                        originalPaddingBottom = inputArea.style.paddingBottom;
-                        inputArea.style.paddingBottom = `${keyboardHeight + 8}px`;
+            originalInputPaddingBottom = getComputedStyle(inputArea).paddingBottom;
+            originalContainerPaddingBottom = getComputedStyle(chatContainerEl).paddingBottom;
+            
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', () => {
+                    const viewport = window.visualViewport;
+                    const windowHeight = window.innerHeight;
+                    const keyboardHeight = Math.max(0, windowHeight - viewport.height);
+                    
+                    if (keyboardHeight > 100) {
+                        if (!isKeyboardVisible) {
+                            isKeyboardVisible = true;
+                            inputArea.style.transition = 'padding-bottom 0.15s ease-out';
+                            inputArea.style.paddingBottom = `${keyboardHeight + 12}px`;
+                            if (chatContainerEl) {
+                                chatContainerEl.style.transition = 'padding-bottom 0.15s ease-out';
+                                chatContainerEl.style.paddingBottom = `${keyboardHeight + 20}px`;
+                            }
+                            setTimeout(() => {
+                                if (!userScrolled && chatContainerEl) {
+                                    chatContainerEl.scrollTop = chatContainerEl.scrollHeight;
+                                }
+                            }, 80);
+                        }
+                    } else if (keyboardHeight < 50 && isKeyboardVisible) {
+                        isKeyboardVisible = false;
+                        inputArea.style.paddingBottom = originalInputPaddingBottom || '8px';
+                        if (chatContainerEl) {
+                            chatContainerEl.style.paddingBottom = originalContainerPaddingBottom || '20px';
+                        }
+                        setTimeout(() => {
+                            if (inputArea) inputArea.style.transition = '';
+                            if (chatContainerEl) chatContainerEl.style.transition = '';
+                        }, 200);
                     }
-                    if (chatContainer) {
-                        originalContainerPaddingBottom = chatContainer.style.paddingBottom;
-                        chatContainer.style.paddingBottom = `${keyboardHeight + 20}px`;
+                });
+            }
+            
+            userInput.addEventListener('focus', () => {
+                setTimeout(() => {
+                    if (!userScrolled && chatContainerEl) {
+                        chatContainerEl.scrollTop = chatContainerEl.scrollHeight;
                     }
-                    setTimeout(() => {
-                        if (!userScrolled && chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
-                    }, 50);
-                } else if (keyboardHeight < 50) {
-                    if (inputArea) inputArea.style.paddingBottom = originalPaddingBottom;
-                    if (chatContainer) chatContainer.style.paddingBottom = originalContainerPaddingBottom;
-                }
+                }, 100);
             });
         }
         
@@ -1055,7 +1095,7 @@
         function renderMarkdown(text) {
             if (typeof marked !== 'undefined') {
                 try {
-                    marked.setOptions({ breaks: true, gfm: true, headerIds: false, mangle: false });
+                    marked.setOptions({ breaks: true, gfm: true, headerIds: false, mangle: false, smartypants: false });
                     let html = marked.parse(text);
                     if (typeof DOMPurify !== 'undefined') {
                         html = DOMPurify.sanitize(html, { 
@@ -1122,8 +1162,8 @@
                 selectMessage(div);
             });
             
-            // 渲染完成后添加复制按钮
             setTimeout(() => {
+                if (contentDiv) renderMath(contentDiv);
                 addCopyButtonsToCodeBlocks();
             }, 10);
             
@@ -1316,12 +1356,9 @@
                     const div = createMessageElement(msg.role, msg.content, new Date().toLocaleTimeString(), true);
                     chatContainer.appendChild(div);
                 });
-                if (typeof renderMathInElement !== 'undefined') {
-                    setTimeout(() => renderMathInElement(chatContainer, {
-                        delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
-                        throwOnError: false
-                    }), 100);
-                }
+                setTimeout(() => {
+                    renderMath(chatContainer);
+                }, 100);
             }
             scrollToBottom();
             updateContinueButtonState();
@@ -1805,13 +1842,7 @@
                         if (loading) loading.remove();
                         contentDiv.innerHTML = getCachedMessage(fullResponse);
                         contentDiv.setAttribute('data-raw-text', fullResponse);
-                        if (typeof renderMathInElement !== 'undefined') {
-                            renderMathInElement(contentDiv, {
-                                delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
-                                throwOnError: false
-                            });
-                        }
-                        // 流式输出时也尝试添加复制按钮
+                        renderMath(contentDiv);
                         addCopyButtonsToCodeBlocks();
                     }
                     scrollToBottom();
@@ -1822,8 +1853,12 @@
                     await saveChat(chat);
                     const contentDiv = aiDiv.querySelector('.content');
                     if (contentDiv) {
+                        const loading = contentDiv.querySelector('.typing-indicator');
+                        if (loading) loading.remove();
                         contentDiv.innerHTML = getCachedMessage(fullResponse);
                         contentDiv.setAttribute('data-raw-text', fullResponse);
+                        renderMath(contentDiv);
+                        addCopyButtonsToCodeBlocks();
                     }
                     autoSpeakIfEnabled();
                 } else {
@@ -1836,6 +1871,7 @@
                     if (loading) loading.remove();
                     contentDiv.innerHTML = getCachedMessage(`❌ 错误: ${error.message}`);
                     contentDiv.setAttribute('data-raw-text', `错误: ${error.message}`);
+                    renderMath(contentDiv);
                 }
             } finally {
                 setGeneratingState(false);
@@ -1893,12 +1929,7 @@
                         if (loading) loading.remove();
                         contentDiv.innerHTML = getCachedMessage(fullResponse);
                         contentDiv.setAttribute('data-raw-text', fullResponse);
-                        if (typeof renderMathInElement !== 'undefined') {
-                            renderMathInElement(contentDiv, {
-                                delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
-                                throwOnError: false
-                            });
-                        }
+                        renderMath(contentDiv);
                         addCopyButtonsToCodeBlocks();
                     }
                     scrollToBottom();
@@ -1913,6 +1944,8 @@
                     if (contentDiv) {
                         contentDiv.innerHTML = getCachedMessage(existing + newPart);
                         contentDiv.setAttribute('data-raw-text', existing + newPart);
+                        renderMath(contentDiv);
+                        addCopyButtonsToCodeBlocks();
                     }
                     showToast('继续完成');
                 }
@@ -1921,6 +1954,7 @@
                 if (typing) typing.remove();
                 if (contentDiv) {
                     contentDiv.innerHTML = getCachedMessage(existing + `<br><span style="color:var(--danger-color);">❌ ${e.message}</span>`);
+                    renderMath(contentDiv);
                 }
             } finally {
                 setGeneratingState(false);
@@ -2211,6 +2245,7 @@
         window.loadVoices = loadVoices;
         window.showStorageDetail = showStorageDetail;
         window.quickCleanOldChats = quickCleanOldChats;
+        window.renderMath = renderMath;
     </script>
 </body>
 </html>
