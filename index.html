@@ -460,7 +460,22 @@
             backdrop-filter: blur(12px);
             border-top: 1px solid var(--border-color);
             flex-shrink: 0;
-            transition: padding-bottom 0.2s ease-out;
+            transition: none;
+            position: relative;
+            z-index: 10;
+        }
+        /* 移动端键盘优化 */
+        @media (max-width: 768px) {
+            .input-area {
+                position: sticky;
+                bottom: 0;
+                background: rgba(var(--chat-bg-rgb), 0.98);
+                padding: 6px 12px;
+            }
+            .chat-container {
+                padding: 12px 12px;
+                padding-bottom: 8px;
+            }
         }
         .input-box {
             display: flex;
@@ -663,29 +678,35 @@
             }
             .sidebar.open { transform: translateX(0); }
             .main-chat { width: 100%; }
-            .chat-container { padding: 16px 12px; padding-bottom: 16px; }
-            .input-area { padding: 6px 12px; }
-            .message { gap: 8px; margin-bottom: 20px; }
-            .avatar { width: 36px; height: 36px; font-size: 14px; }
-            .content { font-size: 15px; line-height: 1.5; word-break: break-word; }
+            .chat-container { 
+                padding: 12px 12px; 
+                padding-bottom: 8px;
+            }
+            .input-area { 
+                padding: 6px 12px;
+                padding-bottom: max(6px, env(safe-area-inset-bottom));
+            }
+            .message { gap: 8px; margin-bottom: 16px; }
+            .avatar { width: 32px; height: 32px; font-size: 13px; }
+            .content { font-size: 15px; line-height: 1.45; word-break: break-word; }
             .message:has(.avatar.user) { flex-direction: row-reverse; }
             .message:has(.avatar.user) .message-content-wrapper { display: flex; flex-direction: column; align-items: flex-end; }
-            .message:has(.avatar.user) .content { background: var(--primary-color); color: white; padding: 12px 16px; border-radius: 20px; border-bottom-right-radius: 4px; max-width: 85%; }
-            .message:has(.avatar.ai) .content { background: var(--ai-msg-bg); padding: 12px 16px; border-radius: 20px; border-bottom-left-radius: 4px; max-width: 90%; }
+            .message:has(.avatar.user) .content { background: var(--primary-color); color: white; padding: 10px 14px; border-radius: 18px; border-bottom-right-radius: 4px; max-width: 85%; }
+            .message:has(.avatar.ai) .content { background: var(--ai-msg-bg); padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 90%; }
             .message-actions { opacity: 0; visibility: hidden; }
             .message.selected .message-actions { opacity: 1; visibility: visible; }
-            .action-btn, .speak-btn { padding: 8px 16px; font-size: 13px; min-height: 40px; background: var(--ai-msg-bg); }
+            .action-btn, .speak-btn { padding: 6px 12px; font-size: 12px; min-height: 36px; background: var(--ai-msg-bg); }
             .input-box { padding: 4px 10px; border-radius: 24px; align-items: center; }
-            textarea { font-size: 15px; padding: 6px 4px; max-height: 70px; }
+            textarea { font-size: 16px; padding: 8px 4px; max-height: 100px; }
             .button-group { gap: 2px; }
-            .attach-btn, .send-btn, .stop-btn, .continue-btn { width: 42px; height: 42px; min-width: 42px; font-size: 16px; }
-            .history-item { padding: 14px; margin-bottom: 6px; }
-            .history-actions-item { opacity: 1; gap: 10px; }
-            .history-rename, .history-delete { padding: 8px 12px; font-size: 15px; }
+            .attach-btn, .send-btn, .stop-btn, .continue-btn { width: 40px; height: 40px; min-width: 40px; font-size: 16px; }
+            .history-item { padding: 12px; margin-bottom: 4px; }
+            .history-actions-item { opacity: 1; gap: 8px; }
+            .history-rename, .history-delete { padding: 6px 10px; font-size: 14px; }
             .menu-toggle { display: flex; }
             .chat-header { padding: 6px 60px 6px 70px; padding-top: max(6px, var(--safe-area-inset-top)); min-height: 44px; }
             .settings-panel { width: 90%; max-width: 380px; border-radius: 28px; padding: 20px; }
-            .toast { bottom: 100px; max-width: 85%; white-space: normal; text-align: center; }
+            .toast { bottom: 80px; max-width: 85%; white-space: normal; text-align: center; }
         }
         
         .voice-settings-panel { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); }
@@ -787,7 +808,7 @@
     </div>
 
     <script>
-        // ==================== IndexedDB 存储管理 ====================
+        // ==================== IndexedDB 存储管理 (完整实现) ====================
         const DB_NAME = 'QwenChatDB';
         const DB_VERSION = 1;
         const STORE_NAME = 'chats';
@@ -842,6 +863,7 @@
         const welcomeMsg = document.getElementById('welcomeMsg');
         const sidebarEl = document.getElementById('sidebar');
         const attachmentArea = document.getElementById('attachmentArea');
+        const inputArea = document.getElementById('inputArea');
         
         // KaTeX 渲染配置
         const KATEX_DELIMITERS = [
@@ -865,124 +887,69 @@
             }
         }
         
-        // ==================== 代码块复制功能 ====================
-        function addCopyButtonsToCodeBlocks() {
-            const contentDivs = document.querySelectorAll('.content');
-            contentDivs.forEach(contentDiv => {
-                const preElements = contentDiv.querySelectorAll('pre');
-                preElements.forEach(pre => {
-                    if (pre.querySelector('.copy-code-btn')) return;
-                    const codeBlock = pre.querySelector('code');
-                    if (!codeBlock) return;
-                    const copyBtn = document.createElement('button');
-                    copyBtn.className = 'copy-code-btn';
-                    copyBtn.innerHTML = '📋 复制';
-                    copyBtn.setAttribute('aria-label', '复制代码');
-                    copyBtn.onclick = async (e) => {
-                        e.stopPropagation();
-                        const codeText = codeBlock.textContent || '';
-                        try {
-                            await navigator.clipboard.writeText(codeText);
-                            const originalText = copyBtn.innerHTML;
-                            copyBtn.innerHTML = '✅ 已复制';
-                            showToast('代码已复制到剪贴板');
-                            setTimeout(() => {
-                                copyBtn.innerHTML = originalText;
-                            }, 1500);
-                        } catch (err) {
-                            console.error('复制失败:', err);
-                            showToast('复制失败，请手动选择复制');
-                        }
-                    };
-                    pre.style.position = 'relative';
-                    pre.appendChild(copyBtn);
-                });
+        // ==================== 键盘处理 - 彻底解决遮挡问题 ====================
+        let originalViewportHeight = window.innerHeight;
+        let keyboardVisible = false;
+        
+        function handleKeyboard() {
+            // 方法1: 监听 focus 事件，滚动到输入框
+            userInput.addEventListener('focus', function() {
+                setTimeout(() => {
+                    // 滚动到输入框位置
+                    inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    // 同时滚动聊天容器到底部
+                    if (!userScrolled && chatContainer) {
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                }, 150);
             });
-        }
-        
-        function attachCopyButtons() {
-            setTimeout(() => {
-                addCopyButtonsToCodeBlocks();
-            }, 50);
-        }
-        
-        // ==================== 选中消息功能 ====================
-        let currentlySelectedMessage = null;
-        
-        function selectMessage(messageElement) {
-            if (currentlySelectedMessage) {
-                currentlySelectedMessage.classList.remove('selected');
-            }
-            currentlySelectedMessage = messageElement;
-            messageElement.classList.add('selected');
-        }
-        
-        function clearMessageSelection() {
-            if (currentlySelectedMessage) {
-                currentlySelectedMessage.classList.remove('selected');
-                currentlySelectedMessage = null;
-            }
-        }
-        
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.message')) {
-                clearMessageSelection();
-            }
-        });
-        
-        // ==================== 键盘处理 (修复遮挡问题) ====================
-        let originalInputPaddingBottom = '';
-        let originalContainerPaddingBottom = '';
-        let isKeyboardVisible = false;
-        
-        function setupKeyboardHandlers() {
-            const inputArea = document.getElementById('inputArea');
-            const chatContainerEl = document.getElementById('chatContainer');
-            if (!inputArea) return;
             
-            originalInputPaddingBottom = getComputedStyle(inputArea).paddingBottom;
-            originalContainerPaddingBottom = getComputedStyle(chatContainerEl).paddingBottom;
-            
+            // 方法2: 使用 visualViewport 监听键盘变化 (移动端)
             if (window.visualViewport) {
                 window.visualViewport.addEventListener('resize', () => {
-                    const viewport = window.visualViewport;
+                    const currentHeight = window.visualViewport.height;
                     const windowHeight = window.innerHeight;
-                    const keyboardHeight = Math.max(0, windowHeight - viewport.height);
+                    const keyboardHeight = windowHeight - currentHeight;
                     
-                    if (keyboardHeight > 100) {
-                        if (!isKeyboardVisible) {
-                            isKeyboardVisible = true;
-                            inputArea.style.transition = 'padding-bottom 0.15s ease-out';
-                            inputArea.style.paddingBottom = `${keyboardHeight + 12}px`;
-                            if (chatContainerEl) {
-                                chatContainerEl.style.transition = 'padding-bottom 0.15s ease-out';
-                                chatContainerEl.style.paddingBottom = `${keyboardHeight + 20}px`;
-                            }
-                            setTimeout(() => {
-                                if (!userScrolled && chatContainerEl) {
-                                    chatContainerEl.scrollTop = chatContainerEl.scrollHeight;
-                                }
-                            }, 80);
-                        }
-                    } else if (keyboardHeight < 50 && isKeyboardVisible) {
-                        isKeyboardVisible = false;
-                        inputArea.style.paddingBottom = originalInputPaddingBottom || '8px';
-                        if (chatContainerEl) {
-                            chatContainerEl.style.paddingBottom = originalContainerPaddingBottom || '20px';
-                        }
+                    if (keyboardHeight > 100 && !keyboardVisible) {
+                        // 键盘弹出
+                        keyboardVisible = true;
+                        // 延迟确保布局更新后滚动
                         setTimeout(() => {
-                            if (inputArea) inputArea.style.transition = '';
-                            if (chatContainerEl) chatContainerEl.style.transition = '';
-                        }, 200);
+                            inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            if (chatContainer) {
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            }
+                        }, 50);
+                    } else if (keyboardHeight < 50 && keyboardVisible) {
+                        // 键盘收起
+                        keyboardVisible = false;
+                        // 恢复滚动
+                        setTimeout(() => {
+                            if (chatContainer && !userScrolled) {
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            }
+                        }, 50);
                     }
                 });
             }
             
-            userInput.addEventListener('focus', () => {
-                setTimeout(() => {
-                    if (!userScrolled && chatContainerEl) {
-                        chatContainerEl.scrollTop = chatContainerEl.scrollHeight;
+            // 方法3: 监听 resize 事件作为后备
+            let resizeTimer;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => {
+                    const newHeight = window.innerHeight;
+                    const heightDiff = originalViewportHeight - newHeight;
+                    if (heightDiff > 100 && !keyboardVisible) {
+                        keyboardVisible = true;
+                        setTimeout(() => {
+                            inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                        }, 100);
+                    } else if (heightDiff < 50 && keyboardVisible) {
+                        keyboardVisible = false;
                     }
+                    originalViewportHeight = newHeight;
                 }, 100);
             });
         }
@@ -1178,6 +1145,71 @@
             attachCopyButtons();
             return div.querySelector('.content');
         }
+        
+        // ==================== 代码块复制功能 ====================
+        function addCopyButtonsToCodeBlocks() {
+            const contentDivs = document.querySelectorAll('.content');
+            contentDivs.forEach(contentDiv => {
+                const preElements = contentDiv.querySelectorAll('pre');
+                preElements.forEach(pre => {
+                    if (pre.querySelector('.copy-code-btn')) return;
+                    const codeBlock = pre.querySelector('code');
+                    if (!codeBlock) return;
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'copy-code-btn';
+                    copyBtn.innerHTML = '📋 复制';
+                    copyBtn.setAttribute('aria-label', '复制代码');
+                    copyBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        const codeText = codeBlock.textContent || '';
+                        try {
+                            await navigator.clipboard.writeText(codeText);
+                            const originalText = copyBtn.innerHTML;
+                            copyBtn.innerHTML = '✅ 已复制';
+                            showToast('代码已复制到剪贴板');
+                            setTimeout(() => {
+                                copyBtn.innerHTML = originalText;
+                            }, 1500);
+                        } catch (err) {
+                            console.error('复制失败:', err);
+                            showToast('复制失败，请手动选择复制');
+                        }
+                    };
+                    pre.style.position = 'relative';
+                    pre.appendChild(copyBtn);
+                });
+            });
+        }
+        
+        function attachCopyButtons() {
+            setTimeout(() => {
+                addCopyButtonsToCodeBlocks();
+            }, 50);
+        }
+        
+        // ==================== 选中消息功能 ====================
+        let currentlySelectedMessage = null;
+        
+        function selectMessage(messageElement) {
+            if (currentlySelectedMessage) {
+                currentlySelectedMessage.classList.remove('selected');
+            }
+            currentlySelectedMessage = messageElement;
+            messageElement.classList.add('selected');
+        }
+        
+        function clearMessageSelection() {
+            if (currentlySelectedMessage) {
+                currentlySelectedMessage.classList.remove('selected');
+                currentlySelectedMessage = null;
+            }
+        }
+        
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.message')) {
+                clearMessageSelection();
+            }
+        });
         
         // ==================== IndexedDB 核心函数 ====================
         function openDB() {
@@ -2184,12 +2216,6 @@
             }
         });
         
-        userInput.addEventListener('focus', () => {
-            setTimeout(() => {
-                if (!userScrolled && chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
-            }, 300);
-        });
-        
         window.onload = async () => {
             if (localStorage.getItem(CONFIG.STORAGE_KEYS.THEME) === 'dark') document.body.classList.add('dark');
             loadSettings();
@@ -2205,7 +2231,7 @@
             updateChatCountDisplay();
             userInput.focus();
             loadVoices();
-            setupKeyboardHandlers();
+            handleKeyboard(); // 启用键盘处理
             attachCopyButtons();
             window.addEventListener('beforeunload', () => {
                 if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
