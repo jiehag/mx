@@ -464,7 +464,7 @@
             position: relative;
             z-index: 10;
         }
-        /* 移动端键盘优化增强 */
+        /* 移动端键盘优化增强 - 改进版 */
         @media (max-width: 768px) {
             .input-area {
                 position: sticky;
@@ -473,19 +473,42 @@
                 padding: 6px 12px;
                 padding-bottom: max(6px, env(safe-area-inset-bottom));
                 transition: transform 0.2s ease-out;
+                z-index: 100;
+                margin-bottom: 0;
             }
             .chat-container {
                 padding: 12px 12px;
                 padding-bottom: 8px;
+                scroll-padding-bottom: 80px;
             }
             textarea {
-                font-size: 16px;
+                font-size: 16px !important;
                 line-height: 1.4;
                 max-height: 120px;
             }
             .button-group {
                 align-items: flex-end;
                 margin-bottom: 4px;
+            }
+            body {
+                position: fixed;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+            }
+            .main-chat {
+                height: 100%;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+            .chat-container {
+                flex: 1;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            .input-area {
+                flex-shrink: 0;
             }
         }
         .input-box {
@@ -928,7 +951,7 @@
             throw lastError;
         }
         
-        // ==================== 优化后的键盘处理 ====================
+        // ==================== 优化后的键盘处理（增强版）====================
         let keyboardVisible = false;
         
         function scrollInputIntoView() {
@@ -950,9 +973,41 @@
         }
         
         function handleKeyboard() {
+            // 增强：输入框获得焦点时强制滚动
             userInput.addEventListener('focus', function() {
-                setTimeout(() => { scrollInputIntoView(); }, 100);
-                setTimeout(() => { scrollInputIntoView(); }, 300);
+                // 延迟滚动等待键盘动画
+                setTimeout(() => {
+                    if (inputArea) {
+                        inputArea.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+                    }
+                    if (chatContainer && !userScrolled) {
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                    // 临时禁用body滚动防止跳动
+                    document.body.style.overflow = 'hidden';
+                    setTimeout(() => {
+                        document.body.style.overflow = '';
+                    }, 500);
+                }, 150);
+                
+                setTimeout(() => {
+                    if (inputArea) {
+                        const rect = inputArea.getBoundingClientRect();
+                        const windowHeight = window.innerHeight;
+                        if (rect.bottom > windowHeight) {
+                            window.scrollBy({ top: rect.bottom - windowHeight + 20, behavior: 'smooth' });
+                        }
+                    }
+                }, 350);
+            });
+            
+            userInput.addEventListener('blur', function() {
+                setTimeout(() => {
+                    if (!keyboardVisible) {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        document.body.style.overflow = '';
+                    }
+                }, 100);
             });
             
             if (window.visualViewport) {
@@ -965,11 +1020,19 @@
                     
                     if (keyboardHeight > 100 && !keyboardVisible) {
                         keyboardVisible = true;
-                        scrollInputIntoView();
-                        setTimeout(() => { if (chatContainer && !userScrolled) chatContainer.scrollTop = chatContainer.scrollHeight; }, 100);
+                        setTimeout(() => {
+                            if (inputArea) {
+                                inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            }
+                            if (chatContainer && !userScrolled) {
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            }
+                        }, 50);
                     } else if (keyboardHeight < 50 && keyboardVisible) {
                         keyboardVisible = false;
-                        setTimeout(() => { if (chatContainer && !userScrolled) chatContainer.scrollTop = chatContainer.scrollHeight; window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
+                        setTimeout(() => {
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }, 50);
                     }
                     lastHeight = currentHeight;
                 });
@@ -984,11 +1047,19 @@
                     const heightDiff = originalViewportHeight - newHeight;
                     if (heightDiff > 100 && !keyboardVisible) {
                         keyboardVisible = true;
-                        scrollInputIntoView();
-                        setTimeout(() => { if (chatContainer && !userScrolled) chatContainer.scrollTop = chatContainer.scrollHeight; }, 150);
+                        setTimeout(() => {
+                            if (inputArea) {
+                                inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                            }
+                            if (chatContainer && !userScrolled) {
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            }
+                        }, 50);
                     } else if (heightDiff < -50 && keyboardVisible) {
                         keyboardVisible = false;
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        setTimeout(() => {
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }, 50);
                     }
                     originalViewportHeight = newHeight;
                 }, 100);
@@ -1001,17 +1072,22 @@
             }
             
             if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                let touchTimeout;
                 window.addEventListener('touchend', function(e) {
-                    if (!userInput.contains(e.target)) {
-                        setTimeout(() => { window.scrollTo(0, 0); if (chatContainer && !userScrolled) chatContainer.scrollTop = chatContainer.scrollHeight; }, 100);
+                    if (!userInput.contains(e.target) && !inputArea.contains(e.target)) {
+                        clearTimeout(touchTimeout);
+                        touchTimeout = setTimeout(() => {
+                            if (!keyboardVisible) {
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                if (chatContainer && !userScrolled) {
+                                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                                }
+                            }
+                        }, 100);
                     }
                 });
             }
         }
-        
-        userInput.addEventListener('blur', function() {
-            setTimeout(() => { if (!keyboardVisible) window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
-        });
         
         function scrollToBottom() {
             if (!userScrolled && chatContainer) {
@@ -1119,7 +1195,7 @@
             }
         });
         
-        // ==================== Markdown 渲染 (异步修复) ====================
+        // ==================== Markdown 渲染 ====================
         async function renderMarkdownAsync(text) {
             if (typeof marked !== 'undefined') {
                 try {
@@ -1287,7 +1363,7 @@
             }
         });
         
-        // ==================== IndexedDB 核心函数 ====================
+        // ==================== IndexedDB 核心函数（精简保留完整功能）====================
         function openDB() {
             return new Promise((resolve, reject) => {
                 if (db && db.name === DB_NAME) {
@@ -1403,7 +1479,7 @@
             });
         }
         
-        // ==================== 对话管理 ====================
+        // ==================== 对话管理（保留完整功能）====================
         async function createNewChat() {
             const newChat = {
                 id: Date.now().toString(),
@@ -1538,7 +1614,7 @@
             clearMessageSelection();
         }
         
-        // ==================== 语音播报功能 ====================
+        // ==================== 语音播报功能（保留完整）====================
         function loadVoices() {
             if (typeof speechSynthesis === 'undefined') return;
             const voices = speechSynthesis.getVoices();
@@ -1737,7 +1813,7 @@
             }
         }
         
-        // ==================== API 调用 ====================
+        // ==================== API 调用（保留完整功能）====================
         function getSystemPrompt() {
             return `<|im_start|>system\n你是一个专门的中文AI助手"通义千问"。必须始终使用简体中文回复，绝对禁止使用其他语言。回答要简洁准确。<|im_end|>\n`;
         }
@@ -2265,7 +2341,7 @@
             }
         }
         
-        // ==================== 设置管理 (带自动保存) ====================
+        // ==================== 设置管理 ====================
         function persistAllSettings() {
             const settings = {
                 apiUrl: API_URL,
