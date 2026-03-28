@@ -754,8 +754,8 @@
         </div>
         <div class="chat-container" id="chatContainer">
             <div class="welcome-placeholder" id="welcomeMsg">
-                <h2></h2>
-                <p style="color: var(--text-secondary);"></p>
+                <h2>🤖 你好，我是本地模型</h2>
+                <p style="color: var(--text-secondary);">支持文件上传、LaTeX公式、语音播报<br>💡 手机端：点击消息显示操作按钮 | 长按可复制/播报 | 右滑打开侧边栏<br>📋 代码块右上角有复制按钮，一键复制代码<br>📐 支持LaTeX公式：行内公式 $E = mc^2$，块级公式 $$\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$$</p>
             </div>
         </div>
         <div class="input-area" id="inputArea">
@@ -808,7 +808,7 @@
     </div>
 
     <script>
-        // ==================== IndexedDB 存储管理 (完整实现) ====================
+        // ==================== IndexedDB 存储管理 ====================
         const DB_NAME = 'QwenChatDB';
         const DB_VERSION = 1;
         const STORE_NAME = 'chats';
@@ -822,6 +822,7 @@
         let currentSearchKeyword = '';
         let messageCache = new Map();
         let userScrolled = false;
+        let currentStreamReader = null;
         
         // 语音播报全局变量
         let currentSpeech = null;
@@ -839,7 +840,7 @@
         
         const CONFIG = {
             STORAGE_KEYS: {
-                SETTINGS: 'qwen_settings_enhanced_v3',
+                SETTINGS: 'qwen_settings_enhanced_v4',
                 THEME: 'qwen_theme_v3',
                 VOICE_NAME: 'qwen_voice_name',
                 VOICE_RATE: 'qwen_voice_rate',
@@ -848,7 +849,9 @@
             },
             MAX_FILE_SIZE: 5 * 1024 * 1024,
             DEFAULT_MODEL_PARAMS: { max_tokens: 512, temperature: 0.7, top_p: 0.9 },
-            MAX_CACHE_SIZE: 200
+            MAX_CACHE_SIZE: 200,
+            FETCH_RETRIES: 3,
+            FETCH_TIMEOUT: 30000
         };
         
         // DOM 元素
@@ -887,24 +890,47 @@
             }
         }
         
-        // ==================== 键盘处理 - 彻底解决遮挡问题 ====================
+        // ==================== 重试机制 ====================
+        async function fetchWithRetry(url, options, retries = CONFIG.FETCH_RETRIES) {
+            let lastError;
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), CONFIG.FETCH_TIMEOUT);
+                    const finalOptions = { ...options, signal: controller.signal };
+                    const response = await fetch(url, finalOptions);
+                    clearTimeout(timeoutId);
+                    if (!response.ok && i === retries - 1) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    if (!response.ok) {
+                        throw new Error(`Retry ${i + 1}`);
+                    }
+                    return response;
+                } catch (e) {
+                    lastError = e;
+                    if (i < retries - 1) {
+                        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+                    }
+                }
+            }
+            throw lastError;
+        }
+        
+        // ==================== 键盘处理 ====================
         let originalViewportHeight = window.innerHeight;
         let keyboardVisible = false;
         
         function handleKeyboard() {
-            // 方法1: 监听 focus 事件，滚动到输入框
             userInput.addEventListener('focus', function() {
                 setTimeout(() => {
-                    // 滚动到输入框位置
                     inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                    // 同时滚动聊天容器到底部
                     if (!userScrolled && chatContainer) {
                         chatContainer.scrollTop = chatContainer.scrollHeight;
                     }
                 }, 150);
             });
             
-            // 方法2: 使用 visualViewport 监听键盘变化 (移动端)
             if (window.visualViewport) {
                 window.visualViewport.addEventListener('resize', () => {
                     const currentHeight = window.visualViewport.height;
@@ -912,9 +938,7 @@
                     const keyboardHeight = windowHeight - currentHeight;
                     
                     if (keyboardHeight > 100 && !keyboardVisible) {
-                        // 键盘弹出
                         keyboardVisible = true;
-                        // 延迟确保布局更新后滚动
                         setTimeout(() => {
                             inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
                             if (chatContainer) {
@@ -922,9 +946,7 @@
                             }
                         }, 50);
                     } else if (keyboardHeight < 50 && keyboardVisible) {
-                        // 键盘收起
                         keyboardVisible = false;
-                        // 恢复滚动
                         setTimeout(() => {
                             if (chatContainer && !userScrolled) {
                                 chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -934,7 +956,6 @@
                 });
             }
             
-            // 方法3: 监听 resize 事件作为后备
             let resizeTimer;
             window.addEventListener('resize', () => {
                 clearTimeout(resizeTimer);
@@ -1058,12 +1079,12 @@
             }
         });
         
-        // ==================== Markdown 渲染 ====================
-        function renderMarkdown(text) {
+        // ==================== Markdown 渲染 (异步修复) ====================
+        async function renderMarkdownAsync(text) {
             if (typeof marked !== 'undefined') {
                 try {
                     marked.setOptions({ breaks: true, gfm: true, headerIds: false, mangle: false, smartypants: false });
-                    let html = marked.parse(text);
+                    let html = await marked.parse(text);
                     if (typeof DOMPurify !== 'undefined') {
                         html = DOMPurify.sanitize(html, { 
                             ALLOWED_TAGS: ['p','br','strong','em','code','pre','h1','h2','h3','h4','h5','h6','ul','li','blockquote','mark','table','thead','tbody','tr','th','td','ol','div','span'],
@@ -1082,9 +1103,9 @@
             return processed;
         }
         
-        function getCachedMessage(content) {
+        async function getCachedMessage(content) {
             if (messageCache.has(content)) return messageCache.get(content);
-            const rendered = renderMarkdown(content);
+            const rendered = await renderMarkdownAsync(content);
             if (messageCache.size >= CONFIG.MAX_CACHE_SIZE) {
                 const firstKey = messageCache.keys().next().value;
                 messageCache.delete(firstKey);
@@ -1094,7 +1115,7 @@
         }
         
         // ==================== 消息元素创建 ====================
-        function createMessageElement(role, content, timestamp, showActions = true) {
+        async function createMessageElementAsync(role, content, timestamp, showActions = true) {
             const div = document.createElement('div');
             div.className = 'message';
             const avatarText = role === 'user' ? '我' : 'Q';
@@ -1105,7 +1126,8 @@
                 actionsHtml = `<div class="message-actions"><button class="action-btn" onclick="copyMessage(this)">📋 复制</button><button class="speak-btn" onclick="speakMessage(this)">🔊 播报</button></div>`;
             }
             
-            div.innerHTML = `<div class="avatar ${avatarClass}">${avatarText}</div><div class="message-content-wrapper"><div class="content" data-raw-text="${escapeHtml(content)}">${getCachedMessage(content)}</div><div class="message-time">${timestamp || new Date().toLocaleTimeString()}</div>${actionsHtml}</div>`;
+            const renderedContent = await getCachedMessage(content);
+            div.innerHTML = `<div class="avatar ${avatarClass}">${avatarText}</div><div class="message-content-wrapper"><div class="content" data-raw-text="${escapeHtml(content)}">${renderedContent}</div><div class="message-time">${timestamp || new Date().toLocaleTimeString()}</div>${actionsHtml}</div>`;
             
             const contentDiv = div.querySelector('.content');
             if (contentDiv) {
@@ -1137,13 +1159,27 @@
             return div;
         }
         
-        function appendMessageToDOM(role, text) {
+        async function appendMessageToDOM(role, text) {
             if (welcomeMsg) welcomeMsg.style.display = 'none';
-            const div = createMessageElement(role, text, new Date().toLocaleTimeString(), true);
+            const div = await createMessageElementAsync(role, text, new Date().toLocaleTimeString(), true);
             chatContainer.appendChild(div);
             scrollToBottom();
             attachCopyButtons();
             return div.querySelector('.content');
+        }
+        
+        function appendMessageToDOMSync(role, text, contentDivCallback) {
+            if (welcomeMsg) welcomeMsg.style.display = 'none';
+            const div = document.createElement('div');
+            div.className = 'message';
+            const avatarText = role === 'user' ? '我' : 'Q';
+            const avatarClass = role === 'user' ? 'user' : 'ai';
+            div.innerHTML = `<div class="avatar ${avatarClass}">${avatarText}</div><div class="message-content-wrapper"><div class="content"></div><div class="message-time">${new Date().toLocaleTimeString()}</div><div class="message-actions"><button class="action-btn" onclick="copyMessage(this)">📋 复制</button><button class="speak-btn" onclick="speakMessage(this)">🔊 播报</button></div></div>`;
+            const contentDiv = div.querySelector('.content');
+            if (contentDivCallback) contentDivCallback(contentDiv);
+            chatContainer.appendChild(div);
+            scrollToBottom();
+            return contentDiv;
         }
         
         // ==================== 代码块复制功能 ====================
@@ -1384,10 +1420,10 @@
                 welcomeClone.style.display = 'block';
                 chatContainer.appendChild(welcomeClone);
             } else {
-                chat.messages.forEach((msg) => {
-                    const div = createMessageElement(msg.role, msg.content, new Date().toLocaleTimeString(), true);
+                for (const msg of chat.messages) {
+                    const div = await createMessageElementAsync(msg.role, msg.content, new Date().toLocaleTimeString(), true);
                     chatContainer.appendChild(div);
-                });
+                }
                 setTimeout(() => {
                     renderMath(chatContainer);
                 }, 100);
@@ -1690,7 +1726,7 @@
             return prompt + selected.join('') + "<|im_start|>assistant\n";
         }
         
-        async function streamCompletion(prompt, onToken) {
+        async function streamCompletion(prompt, onToken, onError, onAbort) {
             let url, body;
             const baseUrl = API_URL.replace(/\/+$/, '');
             
@@ -1729,63 +1765,83 @@
                 });
             }
             
-            const response = await fetch(url, {
+            const response = await fetchWithRetry(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 signal: abortController?.signal,
                 body: body
             });
             
-            if (!response.ok) {
-                let errorMsg = `API错误 ${response.status}`;
-                try {
-                    const errData = await response.text();
-                    console.error('API错误响应:', errData);
-                } catch(e) {}
-                throw new Error(errorMsg);
-            }
-            
             const reader = response.body.getReader();
+            currentStreamReader = reader;
             const decoder = new TextDecoder();
             let buffer = "";
             
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-                
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed) continue;
-                    
-                    let jsonStr = trimmed;
-                    if (trimmed.startsWith('data:')) {
-                        jsonStr = trimmed.substring(5).trim();
-                        if (jsonStr === '[DONE]' || !jsonStr) continue;
+            try {
+                while (true) {
+                    if (abortController?.signal.aborted) {
+                        if (onAbort) onAbort();
+                        break;
                     }
                     
-                    try {
-                        const json = JSON.parse(jsonStr);
-                        let token = null;
-                        
-                        if (API_TYPE === 'llama') {
-                            if (json.content !== undefined) token = json.content;
-                        } else if (API_TYPE === 'ollama') {
-                            if (json.response !== undefined) token = json.response;
-                        } else if (API_TYPE === 'openai') {
-                            if (json.choices?.[0]?.delta?.content !== undefined) token = json.choices[0].delta.content;
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    if (abortController?.signal.aborted) {
+                        if (onAbort) onAbort();
+                        break;
+                    }
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (abortController?.signal.aborted) {
+                            if (onAbort) onAbort();
+                            return;
                         }
                         
-                        if (token) {
-                            onToken(token);
+                        const trimmed = line.trim();
+                        if (!trimmed) continue;
+                        
+                        let jsonStr = trimmed;
+                        if (trimmed.startsWith('data:')) {
+                            jsonStr = trimmed.substring(5).trim();
+                            if (jsonStr === '[DONE]' || !jsonStr) continue;
                         }
-                    } catch (e) {
-                        console.debug('SSE解析跳过');
+                        
+                        try {
+                            const json = JSON.parse(jsonStr);
+                            let token = null;
+                            
+                            if (API_TYPE === 'llama') {
+                                if (json.content !== undefined) token = json.content;
+                            } else if (API_TYPE === 'ollama') {
+                                if (json.response !== undefined) token = json.response;
+                            } else if (API_TYPE === 'openai') {
+                                if (json.choices?.[0]?.delta?.content !== undefined) token = json.choices[0].delta.content;
+                            }
+                            
+                            if (token) {
+                                onToken(token);
+                            }
+                        } catch (e) {
+                            console.debug('SSE解析跳过');
+                        }
                     }
                 }
+            } catch (e) {
+                if (e.name === 'AbortError' || abortController?.signal.aborted) {
+                    if (onAbort) onAbort();
+                } else {
+                    throw e;
+                }
+            } finally {
+                currentStreamReader = null;
+                try {
+                    reader.releaseLock();
+                } catch(e) {}
             }
         }
         
@@ -1808,9 +1864,14 @@
         function stopGeneration() {
             if (abortController) {
                 abortController.abort();
+                if (currentStreamReader) {
+                    try {
+                        currentStreamReader.cancel();
+                    } catch(e) {}
+                }
                 abortController = null;
                 setGeneratingState(false);
-                showToast('已停止生成');
+                showToast('⏹️ 已停止生成');
             }
         }
         
@@ -1829,12 +1890,12 @@
                 chat.messages.push({ role: 'user', content: userDisplayText });
                 if (chat.messages.length === 1) chat.title = userDisplayText.slice(0, 20);
                 await saveChat(chat);
-                appendMessageToDOM('user', userDisplayText);
+                await appendMessageToDOM('user', userDisplayText);
             } else if (text) {
                 chat.messages.push({ role: 'user', content: text });
                 if (chat.messages.length === 1) chat.title = text.slice(0, 20);
                 await saveChat(chat);
-                appendMessageToDOM('user', text);
+                await appendMessageToDOM('user', text);
             } else {
                 return;
             }
@@ -1849,45 +1910,78 @@
             userScrolled = false;
             clearMessageSelection();
             
-            const aiDiv = createMessageElement('ai', '', new Date().toLocaleTimeString(), false);
-            const loadingSpan = document.createElement('div');
-            loadingSpan.className = 'typing-indicator';
-            loadingSpan.innerHTML = '<span></span><span></span><span></span>';
-            const contentDivForLoading = aiDiv.querySelector('.content');
-            if (contentDivForLoading) contentDivForLoading.appendChild(loadingSpan);
-            chatContainer.appendChild(aiDiv);
-            scrollToBottom();
+            let fullResponse = "";
+            let contentDiv = null;
+            let isAborted = false;
+            
+            const aiContentDiv = appendMessageToDOMSync('ai', '', (div) => {
+                contentDiv = div;
+                const loadingSpan = document.createElement('div');
+                loadingSpan.className = 'typing-indicator';
+                loadingSpan.innerHTML = '<span></span><span></span><span></span>';
+                div.appendChild(loadingSpan);
+            });
             
             const actualMessages = [...chat.messages];
             const systemPrompt = getSystemPrompt();
             const prompt = buildPromptWithLimit(actualMessages, systemPrompt, MAX_CONTEXT_TOKENS);
             
-            let fullResponse = "";
             abortController = new AbortController();
             
             try {
-                await streamCompletion(prompt, (token) => {
-                    fullResponse += token;
-                    const contentDiv = aiDiv.querySelector('.content');
-                    if (contentDiv) {
+                await streamCompletion(prompt, 
+                    async (token) => {
+                        if (abortController?.signal.aborted) {
+                            isAborted = true;
+                            return;
+                        }
+                        fullResponse += token;
+                        if (contentDiv) {
+                            const loading = contentDiv.querySelector('.typing-indicator');
+                            if (loading) loading.remove();
+                            const rendered = await getCachedMessage(fullResponse);
+                            contentDiv.innerHTML = rendered;
+                            contentDiv.setAttribute('data-raw-text', fullResponse);
+                            renderMath(contentDiv);
+                            addCopyButtonsToCodeBlocks();
+                        }
+                        scrollToBottom();
+                    },
+                    (error) => {
+                        console.error('Stream error:', error);
+                        if (contentDiv && !abortController?.signal.aborted) {
+                            const loading = contentDiv.querySelector('.typing-indicator');
+                            if (loading) loading.remove();
+                            contentDiv.innerHTML = `❌ 错误: ${error.message}`;
+                            contentDiv.setAttribute('data-raw-text', `错误: ${error.message}`);
+                        }
+                    },
+                    () => {
+                        isAborted = true;
+                        if (contentDiv) {
+                            const loading = contentDiv.querySelector('.typing-indicator');
+                            if (loading) loading.remove();
+                            if (!fullResponse) {
+                                contentDiv.innerHTML = `⏹️ 已停止生成`;
+                                contentDiv.setAttribute('data-raw-text', `已停止生成`);
+                            }
+                        }
+                    }
+                );
+                
+                if (isAborted) {
+                    if (contentDiv && !fullResponse) {
                         const loading = contentDiv.querySelector('.typing-indicator');
                         if (loading) loading.remove();
-                        contentDiv.innerHTML = getCachedMessage(fullResponse);
-                        contentDiv.setAttribute('data-raw-text', fullResponse);
-                        renderMath(contentDiv);
-                        addCopyButtonsToCodeBlocks();
                     }
-                    scrollToBottom();
-                });
-                
-                if (fullResponse) {
+                } else if (fullResponse) {
                     chat.messages.push({ role: 'assistant', content: fullResponse });
                     await saveChat(chat);
-                    const contentDiv = aiDiv.querySelector('.content');
                     if (contentDiv) {
                         const loading = contentDiv.querySelector('.typing-indicator');
                         if (loading) loading.remove();
-                        contentDiv.innerHTML = getCachedMessage(fullResponse);
+                        const rendered = await getCachedMessage(fullResponse);
+                        contentDiv.innerHTML = rendered;
                         contentDiv.setAttribute('data-raw-text', fullResponse);
                         renderMath(contentDiv);
                         addCopyButtonsToCodeBlocks();
@@ -1897,13 +1991,15 @@
                     throw new Error('无响应');
                 }
             } catch(error) {
-                const contentDiv = aiDiv.querySelector('.content');
-                if (contentDiv) {
+                if (!isAborted && contentDiv) {
                     const loading = contentDiv.querySelector('.typing-indicator');
                     if (loading) loading.remove();
-                    contentDiv.innerHTML = getCachedMessage(`❌ 错误: ${error.message}`);
+                    contentDiv.innerHTML = `❌ 错误: ${error.message}`;
                     contentDiv.setAttribute('data-raw-text', `错误: ${error.message}`);
                     renderMath(contentDiv);
+                }
+                if (!isAborted) {
+                    showToast(`请求失败: ${error.message}`);
                 }
             } finally {
                 setGeneratingState(false);
@@ -1950,43 +2046,63 @@
             const prompt = fullHistory + `<|im_start|>assistant\n` + existing;
             
             let newPart = "";
+            let isAborted = false;
             abortController = new AbortController();
             
             try {
-                await streamCompletion(prompt, (token) => {
-                    newPart += token;
-                    const fullResponse = existing + newPart;
-                    if (contentDiv) {
-                        const loading = contentDiv.querySelector('.typing-indicator');
-                        if (loading) loading.remove();
-                        contentDiv.innerHTML = getCachedMessage(fullResponse);
-                        contentDiv.setAttribute('data-raw-text', fullResponse);
-                        renderMath(contentDiv);
-                        addCopyButtonsToCodeBlocks();
+                await streamCompletion(prompt, 
+                    async (token) => {
+                        if (abortController?.signal.aborted) {
+                            isAborted = true;
+                            return;
+                        }
+                        newPart += token;
+                        const fullResponse = existing + newPart;
+                        if (contentDiv) {
+                            const loading = contentDiv.querySelector('.typing-indicator');
+                            if (loading) loading.remove();
+                            const rendered = await getCachedMessage(fullResponse);
+                            contentDiv.innerHTML = rendered;
+                            contentDiv.setAttribute('data-raw-text', fullResponse);
+                            renderMath(contentDiv);
+                            addCopyButtonsToCodeBlocks();
+                        }
+                        scrollToBottom();
+                    },
+                    (error) => {
+                        console.error('Continue error:', error);
+                    },
+                    () => {
+                        isAborted = true;
                     }
-                    scrollToBottom();
-                });
+                );
                 
                 const typing = contentDiv?.querySelector('.typing-indicator');
                 if (typing) typing.remove();
                 
-                if (newPart.trim()) {
+                if (!isAborted && newPart.trim()) {
                     chat.messages[chat.messages.length - 1].content = existing + newPart;
                     await saveChat(chat);
                     if (contentDiv) {
-                        contentDiv.innerHTML = getCachedMessage(existing + newPart);
+                        const rendered = await getCachedMessage(existing + newPart);
+                        contentDiv.innerHTML = rendered;
                         contentDiv.setAttribute('data-raw-text', existing + newPart);
                         renderMath(contentDiv);
                         addCopyButtonsToCodeBlocks();
                     }
                     showToast('继续完成');
+                } else if (isAborted) {
+                    showToast('已停止继续生成');
                 }
             } catch(e) {
                 const typing = contentDiv?.querySelector('.typing-indicator');
                 if (typing) typing.remove();
-                if (contentDiv) {
-                    contentDiv.innerHTML = getCachedMessage(existing + `<br><span style="color:var(--danger-color);">❌ ${e.message}</span>`);
+                if (contentDiv && !isAborted) {
+                    contentDiv.innerHTML = existing + `<br><span style="color:var(--danger-color);">❌ ${e.message}</span>`;
                     renderMath(contentDiv);
+                }
+                if (!isAborted) {
+                    showToast(`继续生成失败: ${e.message}`);
                 }
             } finally {
                 setGeneratingState(false);
@@ -2038,39 +2154,34 @@
         
         async function checkServerStatus() {
             try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
                 let testSuccess = false;
                 const baseUrl = API_URL.replace(/\/+$/, '');
                 
                 if (API_TYPE === 'ollama') {
                     try {
-                        const response = await fetch(`${baseUrl}/api/tags`, { method: 'GET', signal: controller.signal });
+                        const response = await fetchWithRetry(`${baseUrl}/api/tags`, { method: 'GET' }, 1);
                         testSuccess = response.ok;
                     } catch(e) {}
                 } else if (API_TYPE === 'llama') {
                     try {
-                        const response = await fetch(`${baseUrl}/health`, { method: 'GET', signal: controller.signal });
+                        const response = await fetchWithRetry(`${baseUrl}/health`, { method: 'GET' }, 1);
                         testSuccess = response.ok;
                     } catch(e) {
                         try {
-                            const response = await fetch(`${baseUrl}/completion`, {
+                            const response = await fetchWithRetry(`${baseUrl}/completion`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ prompt: "test", n_predict: 1, stream: false }),
-                                signal: controller.signal
-                            });
+                                body: JSON.stringify({ prompt: "test", n_predict: 1, stream: false })
+                            }, 1);
                             testSuccess = response.ok || response.status === 400;
                         } catch(e2) {}
                     }
                 } else if (API_TYPE === 'openai') {
                     try {
-                        const response = await fetch(`${baseUrl}/v1/models`, { method: 'GET', signal: controller.signal });
+                        const response = await fetchWithRetry(`${baseUrl}/v1/models`, { method: 'GET' }, 1);
                         testSuccess = response.ok;
                     } catch(e) {}
                 }
-                
-                clearTimeout(timeoutId);
                 
                 if (testSuccess) {
                     statusDot.classList.add('online');
@@ -2113,31 +2224,40 @@
             }
         }
         
-        // ==================== 设置管理 ====================
-        function setApiType(type) {
-            API_TYPE = type;
-            document.getElementById('apiLlama').classList.remove('active');
-            document.getElementById('apiOllama').classList.remove('active');
-            document.getElementById('ApiOpenAI').classList.remove('active');
-            if (type === 'llama') {
-                document.getElementById('apiLlama').classList.add('active');
-                API_URL = 'http://127.0.0.1:8080';
-            }
-            if (type === 'ollama') {
-                document.getElementById('apiOllama').classList.add('active');
-                API_URL = 'http://127.0.0.1:11434';
-            }
-            if (type === 'openai') {
-                document.getElementById('ApiOpenAI').classList.add('active');
-                API_URL = 'https://api.openai.com/v1';
-            }
-            const modelLabel = document.getElementById('modelNameLabel');
-            modelLabel.style.display = type === 'ollama' ? 'block' : 'none';
-            document.getElementById('apiUrl').value = API_URL;
-            setTimeout(() => checkServerStatus(), 500);
+        // ==================== 设置管理 (带自动保存) ====================
+        // 保存所有模型参数和API配置到localStorage
+        function persistAllSettings() {
+            const settings = {
+                apiUrl: API_URL,
+                apiType: API_TYPE,
+                modelName: MODEL_NAME,
+                modelParams: { ...MODEL_PARAMS },
+                maxContext: MAX_CONTEXT_TOKENS
+            };
+            localStorage.setItem(CONFIG.STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
         }
         
-        function saveSettings() {
+        // 监听所有参数变化并自动保存
+        function bindAutoSaveEvents() {
+            const elements = ['temperature', 'maxTokens', 'topP', 'contextLimit', 'apiUrl', 'modelName'];
+            elements.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('change', () => {
+                        syncSettingsFromUI();
+                        persistAllSettings();
+                    });
+                    if (el.type === 'range') {
+                        el.addEventListener('input', () => {
+                            document.getElementById(id === 'temperature' ? 'tempValue' : (id === 'topP' ? 'topPValue' : null))?.setAttribute('value', el.value);
+                        });
+                    }
+                }
+            });
+            // 监听API类型切换按钮的样式变化已经在setApiType中处理
+        }
+        
+        function syncSettingsFromUI() {
             MODEL_PARAMS = {
                 max_tokens: parseInt(document.getElementById('maxTokens').value),
                 temperature: parseFloat(document.getElementById('temperature').value),
@@ -2146,17 +2266,44 @@
             MAX_CONTEXT_TOKENS = parseInt(document.getElementById('contextLimit').value);
             API_URL = document.getElementById('apiUrl').value;
             if (API_TYPE === 'ollama') MODEL_NAME = document.getElementById('modelName').value;
-            localStorage.setItem(CONFIG.STORAGE_KEYS.SETTINGS, JSON.stringify({
-                apiUrl: API_URL,
-                apiType: API_TYPE,
-                modelName: MODEL_NAME,
-                modelParams: MODEL_PARAMS,
-                maxContext: MAX_CONTEXT_TOKENS
-            }));
             document.getElementById('contextSize').innerText = MAX_CONTEXT_TOKENS;
+        }
+        
+        function setApiType(type) {
+            API_TYPE = type;
+            document.getElementById('apiLlama').classList.remove('active');
+            document.getElementById('apiOllama').classList.remove('active');
+            document.getElementById('ApiOpenAI').classList.remove('active');
+            if (type === 'llama') {
+                document.getElementById('apiLlama').classList.add('active');
+                if (document.getElementById('apiUrl').value === 'http://127.0.0.1:11434' || document.getElementById('apiUrl').value === 'https://api.openai.com/v1') 
+                    document.getElementById('apiUrl').value = 'http://127.0.0.1:8080';
+            }
+            if (type === 'ollama') {
+                document.getElementById('apiOllama').classList.add('active');
+                if (document.getElementById('apiUrl').value === 'http://127.0.0.1:8080' || document.getElementById('apiUrl').value === 'https://api.openai.com/v1')
+                    document.getElementById('apiUrl').value = 'http://127.0.0.1:11434';
+            }
+            if (type === 'openai') {
+                document.getElementById('ApiOpenAI').classList.add('active');
+                if (document.getElementById('apiUrl').value === 'http://127.0.0.1:8080' || document.getElementById('apiUrl').value === 'http://127.0.0.1:11434')
+                    document.getElementById('apiUrl').value = 'https://api.openai.com/v1';
+            }
+            const modelLabel = document.getElementById('modelNameLabel');
+            modelLabel.style.display = type === 'ollama' ? 'block' : 'none';
+            document.getElementById('apiUrl').value = API_URL;
+            // 同步UI到内存并自动保存
+            syncSettingsFromUI();
+            persistAllSettings();
+            setTimeout(() => checkServerStatus(), 500);
+        }
+        
+        function saveSettings() {
+            syncSettingsFromUI();
+            persistAllSettings();
+            saveVoiceSettings();
             closeSettings();
             showToast('设置已保存');
-            saveVoiceSettings();
             setTimeout(() => checkServerStatus(), 500);
         }
         
@@ -2185,12 +2332,36 @@
         }
         
         function openSettings() {
+            // 打开前同步最新值
+            document.getElementById('temperature').value = MODEL_PARAMS.temperature;
+            document.getElementById('maxTokens').value = MODEL_PARAMS.max_tokens;
+            document.getElementById('topP').value = MODEL_PARAMS.top_p;
+            document.getElementById('contextLimit').value = MAX_CONTEXT_TOKENS;
+            document.getElementById('apiUrl').value = API_URL;
+            document.getElementById('modelName').value = MODEL_NAME;
+            document.getElementById('tempValue').textContent = MODEL_PARAMS.temperature;
+            document.getElementById('topPValue').textContent = MODEL_PARAMS.top_p;
             document.getElementById('settingsModal').style.display = 'flex';
         }
         
         function closeSettings() {
             document.getElementById('settingsModal').style.display = 'none';
         }
+        
+        // ==================== 全局错误处理 ====================
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('未处理的Promise错误:', e.reason);
+            if (e.reason?.name !== 'AbortError') {
+                showToast('发生错误，请刷新页面重试');
+            }
+        });
+        
+        window.addEventListener('error', (e) => {
+            console.error('全局错误:', e.error);
+            if (e.message && !e.message.includes('ResizeObserver') && !e.message.includes('AbortError')) {
+                showToast('页面发生错误，部分功能可能不可用');
+            }
+        });
         
         // ==================== 事件监听和初始化 ====================
         document.getElementById('temperature')?.addEventListener('input', (e) => {
@@ -2219,6 +2390,7 @@
         window.onload = async () => {
             if (localStorage.getItem(CONFIG.STORAGE_KEYS.THEME) === 'dark') document.body.classList.add('dark');
             loadSettings();
+            bindAutoSaveEvents();  // 绑定自动保存事件
             await loadAllChats();
             checkServerStatus();
             setInterval(checkServerStatus, 30000);
@@ -2231,10 +2403,15 @@
             updateChatCountDisplay();
             userInput.focus();
             loadVoices();
-            handleKeyboard(); // 启用键盘处理
+            handleKeyboard();
             attachCopyButtons();
             window.addEventListener('beforeunload', () => {
                 if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+                if (currentStreamReader) {
+                    try {
+                        currentStreamReader.cancel();
+                    } catch(e) {}
+                }
             });
         };
         
