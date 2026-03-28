@@ -464,17 +464,28 @@
             position: relative;
             z-index: 10;
         }
-        /* 移动端键盘优化 */
+        /* 移动端键盘优化增强 */
         @media (max-width: 768px) {
             .input-area {
                 position: sticky;
                 bottom: 0;
                 background: rgba(var(--chat-bg-rgb), 0.98);
                 padding: 6px 12px;
+                padding-bottom: max(6px, env(safe-area-inset-bottom));
+                transition: transform 0.2s ease-out;
             }
             .chat-container {
                 padding: 12px 12px;
                 padding-bottom: 8px;
+            }
+            textarea {
+                font-size: 16px;
+                line-height: 1.4;
+                max-height: 120px;
+            }
+            .button-group {
+                align-items: flex-end;
+                margin-bottom: 4px;
             }
         }
         .input-box {
@@ -917,46 +928,55 @@
             throw lastError;
         }
         
-        // ==================== 键盘处理 ====================
-        let originalViewportHeight = window.innerHeight;
+        // ==================== 优化后的键盘处理 ====================
         let keyboardVisible = false;
+        
+        function scrollInputIntoView() {
+            if (!inputArea) return;
+            inputArea.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+            setTimeout(() => {
+                const rect = inputArea.getBoundingClientRect();
+                const windowHeight = window.innerHeight;
+                if (rect.bottom > windowHeight) {
+                    window.scrollBy({ top: rect.bottom - windowHeight + 20, behavior: 'smooth' });
+                }
+            }, 50);
+        }
+        
+        function forceScrollToBottom() {
+            if (chatContainer && !userScrolled) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
         
         function handleKeyboard() {
             userInput.addEventListener('focus', function() {
-                setTimeout(() => {
-                    inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                    if (!userScrolled && chatContainer) {
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
-                    }
-                }, 150);
+                setTimeout(() => { scrollInputIntoView(); }, 100);
+                setTimeout(() => { scrollInputIntoView(); }, 300);
             });
             
             if (window.visualViewport) {
+                let lastHeight = window.visualViewport.height;
                 window.visualViewport.addEventListener('resize', () => {
-                    const currentHeight = window.visualViewport.height;
+                    const viewport = window.visualViewport;
+                    const currentHeight = viewport.height;
                     const windowHeight = window.innerHeight;
                     const keyboardHeight = windowHeight - currentHeight;
                     
                     if (keyboardHeight > 100 && !keyboardVisible) {
                         keyboardVisible = true;
-                        setTimeout(() => {
-                            inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                            if (chatContainer) {
-                                chatContainer.scrollTop = chatContainer.scrollHeight;
-                            }
-                        }, 50);
+                        scrollInputIntoView();
+                        setTimeout(() => { if (chatContainer && !userScrolled) chatContainer.scrollTop = chatContainer.scrollHeight; }, 100);
                     } else if (keyboardHeight < 50 && keyboardVisible) {
                         keyboardVisible = false;
-                        setTimeout(() => {
-                            if (chatContainer && !userScrolled) {
-                                chatContainer.scrollTop = chatContainer.scrollHeight;
-                            }
-                        }, 50);
+                        setTimeout(() => { if (chatContainer && !userScrolled) chatContainer.scrollTop = chatContainer.scrollHeight; window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
                     }
+                    lastHeight = currentHeight;
                 });
             }
             
             let resizeTimer;
+            let originalViewportHeight = window.innerHeight;
             window.addEventListener('resize', () => {
                 clearTimeout(resizeTimer);
                 resizeTimer = setTimeout(() => {
@@ -964,20 +984,40 @@
                     const heightDiff = originalViewportHeight - newHeight;
                     if (heightDiff > 100 && !keyboardVisible) {
                         keyboardVisible = true;
-                        setTimeout(() => {
-                            inputArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                        }, 100);
-                    } else if (heightDiff < 50 && keyboardVisible) {
+                        scrollInputIntoView();
+                        setTimeout(() => { if (chatContainer && !userScrolled) chatContainer.scrollTop = chatContainer.scrollHeight; }, 150);
+                    } else if (heightDiff < -50 && keyboardVisible) {
                         keyboardVisible = false;
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
                     }
                     originalViewportHeight = newHeight;
                 }, 100);
             });
+            
+            if (chatContainer) {
+                chatContainer.addEventListener('scroll', () => {
+                    userScrolled = chatContainer.scrollTop < chatContainer.scrollHeight - chatContainer.clientHeight - 50;
+                });
+            }
+            
+            if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                window.addEventListener('touchend', function(e) {
+                    if (!userInput.contains(e.target)) {
+                        setTimeout(() => { window.scrollTo(0, 0); if (chatContainer && !userScrolled) chatContainer.scrollTop = chatContainer.scrollHeight; }, 100);
+                    }
+                });
+            }
         }
+        
+        userInput.addEventListener('blur', function() {
+            setTimeout(() => { if (!keyboardVisible) window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
+        });
         
         function scrollToBottom() {
             if (!userScrolled && chatContainer) {
-                chatContainer.scrollTop = chatContainer.scrollHeight;
+                requestAnimationFrame(() => {
+                    chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+                });
             }
         }
         
@@ -1909,6 +1949,7 @@
             setGeneratingState(true);
             userScrolled = false;
             clearMessageSelection();
+            forceScrollToBottom();
             
             let fullResponse = "";
             let contentDiv = null;
@@ -2225,7 +2266,6 @@
         }
         
         // ==================== 设置管理 (带自动保存) ====================
-        // 保存所有模型参数和API配置到localStorage
         function persistAllSettings() {
             const settings = {
                 apiUrl: API_URL,
@@ -2237,7 +2277,6 @@
             localStorage.setItem(CONFIG.STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
         }
         
-        // 监听所有参数变化并自动保存
         function bindAutoSaveEvents() {
             const elements = ['temperature', 'maxTokens', 'topP', 'contextLimit', 'apiUrl', 'modelName'];
             elements.forEach(id => {
@@ -2249,12 +2288,12 @@
                     });
                     if (el.type === 'range') {
                         el.addEventListener('input', () => {
-                            document.getElementById(id === 'temperature' ? 'tempValue' : (id === 'topP' ? 'topPValue' : null))?.setAttribute('value', el.value);
+                            const spanId = id === 'temperature' ? 'tempValue' : (id === 'topP' ? 'topPValue' : null);
+                            if (spanId) document.getElementById(spanId).textContent = el.value;
                         });
                     }
                 }
             });
-            // 监听API类型切换按钮的样式变化已经在setApiType中处理
         }
         
         function syncSettingsFromUI() {
@@ -2292,7 +2331,6 @@
             const modelLabel = document.getElementById('modelNameLabel');
             modelLabel.style.display = type === 'ollama' ? 'block' : 'none';
             document.getElementById('apiUrl').value = API_URL;
-            // 同步UI到内存并自动保存
             syncSettingsFromUI();
             persistAllSettings();
             setTimeout(() => checkServerStatus(), 500);
@@ -2332,7 +2370,6 @@
         }
         
         function openSettings() {
-            // 打开前同步最新值
             document.getElementById('temperature').value = MODEL_PARAMS.temperature;
             document.getElementById('maxTokens').value = MODEL_PARAMS.max_tokens;
             document.getElementById('topP').value = MODEL_PARAMS.top_p;
@@ -2390,7 +2427,7 @@
         window.onload = async () => {
             if (localStorage.getItem(CONFIG.STORAGE_KEYS.THEME) === 'dark') document.body.classList.add('dark');
             loadSettings();
-            bindAutoSaveEvents();  // 绑定自动保存事件
+            bindAutoSaveEvents();
             await loadAllChats();
             checkServerStatus();
             setInterval(checkServerStatus, 30000);
@@ -2449,6 +2486,7 @@
         window.showStorageDetail = showStorageDetail;
         window.quickCleanOldChats = quickCleanOldChats;
         window.renderMath = renderMath;
+        window.forceScrollToBottom = forceScrollToBottom;
     </script>
 </body>
 </html>
