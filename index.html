@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#615ced">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>通义千问 - RAG知识库增强版 | 全局备份恢复</title>
+    <title>本地模型 - RAG知识库增强版 | 全局备份恢复</title>
     <!-- KaTeX 数学公式渲染库 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
@@ -117,7 +117,7 @@
             transform: scale(1.02);
         }
         
-        /* 侧边栏样式 - 同时支持桌面和移动端 */
+        /* 侧边栏样式 */
         .sidebar {
             width: 280px;
             background: var(--sidebar-bg);
@@ -136,133 +136,64 @@
             z-index: 100;
         }
         
-        /* 桌面版侧边栏默认显示 */
         @media (min-width: 769px) {
-            .sidebar {
-                transform: translateX(0) !important;
-                margin-left: 0;
-            }
-            .sidebar.collapsed-desktop {
-                margin-left: -280px;
-            }
-            .mobile-menu-toggle {
-                display: none !important;
-            }
+            .sidebar { transform: translateX(0) !important; margin-left: 0; }
+            .sidebar.collapsed-desktop { margin-left: -280px; }
+            .mobile-menu-toggle { display: none !important; }
         }
         
-        /* 移动端侧边栏默认隐藏 */
         @media (max-width: 768px) {
-            .sidebar {
+            .sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); z-index: 1100; }
+            .sidebar.open { transform: translateX(0); box-shadow: 2px 0 12px rgba(0,0,0,0.15); }
+            .sidebar.collapsed-desktop { margin-left: 0; }
+            .desktop-menu-toggle { display: none !important; }
+            .mobile-menu-toggle { display: flex; position: fixed; top: max(8px, var(--safe-area-inset-top)); left: 12px; z-index: 1200; background: var(--chat-bg); border: 1px solid var(--border-color); padding: 6px; border-radius: 14px; cursor: pointer; font-size: 20px; width: 44px; height: 44px; align-items: center; justify-content: center; touch-action: manipulation; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+            .chat-container { padding: 12px 12px !important; }
+            .input-area { padding: 6px 12px; padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+            .quick-template-bar { margin: 0 12px 8px 12px; }
+            .message .avatar { width: 32px; height: 32px; font-size: 12px; }
+            .content { font-size: 14px; }
+            .message { gap: 8px; }
+            /* 移动端调试面板调整位置，避开输入区域和发送按钮 */
+            .debug-panel { 
+                bottom: 70px; 
+                right: 12px; 
+                left: auto; 
+                z-index: 1000;
                 position: fixed;
-                left: 0;
-                top: 0;
-                bottom: 0;
-                transform: translateX(-100%);
-                z-index: 1100;
             }
-            .sidebar.open {
-                transform: translateX(0);
-                box-shadow: 2px 0 12px rgba(0,0,0,0.15);
-            }
-            .sidebar.collapsed-desktop {
-                margin-left: 0;
-            }
-            .desktop-menu-toggle {
-                display: none !important;
-            }
+            /* 移动端附件管理优化 */
+            .attachments-manager { padding: 6px 10px; margin-bottom: 6px; }
+            .attachment-item { font-size: 11px; padding: 2px 6px; }
+            /* 移动端模态框优化 */
+            .modal-content { max-width: 95%; width: 95%; margin: 16px; }
+            .template-grid { grid-template-columns: 1fr; max-height: 60vh; }
+            /* 移动端快捷模板栏优化 */
+            .quick-template-bar { gap: 6px; padding: 6px 10px; }
+            .quick-template-item { padding: 4px 10px; font-size: 11px; }
+            /* 移动端消息操作按钮优化 */
+            .message-actions { gap: 6px; }
+            .action-btn, .speak-btn { padding: 4px 10px; font-size: 11px; }
         }
         
-        /* 移动端菜单按钮 */
-        .mobile-menu-toggle {
-            position: fixed;
-            top: max(8px, var(--safe-area-inset-top));
-            left: 12px;
-            z-index: 1200;
-            background: var(--chat-bg);
-            border: 1px solid var(--border-color);
-            padding: 6px;
-            border-radius: 14px;
-            cursor: pointer;
-            font-size: 20px;
-            width: 44px;
-            height: 44px;
-            align-items: center;
-            justify-content: center;
-            touch-action: manipulation;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            display: none;
+        /* 桌面端保持原有边距 */
+        @media (min-width: 769px) {
+            .chat-container { padding: 20px 15%; }
         }
         
-        /* 桌面版菜单按钮 */
-        .desktop-menu-toggle {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 20px;
-            padding: 4px 8px;
-            border-radius: 12px;
-            color: var(--text-secondary);
-            touch-action: manipulation;
-            min-width: 44px;
-            min-height: 44px;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .desktop-menu-toggle:hover {
-            background: var(--border-color);
-        }
-        
-        @media (max-width: 768px) {
-            .mobile-menu-toggle {
-                display: flex;
-            }
-        }
+        .desktop-menu-toggle { background: none; border: none; cursor: pointer; font-size: 20px; padding: 4px 8px; border-radius: 12px; color: var(--text-secondary); touch-action: manipulation; min-width: 44px; min-height: 44px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+        .desktop-menu-toggle:hover { background: var(--border-color); }
         
         .new-chat-btn { background: var(--primary-color); color: white; border: none; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; touch-action: manipulation; min-height: 44px; }
         .new-chat-btn:active { opacity: 0.8; transform: scale(0.98); }
         
-        /* 知识库区域样式 - 折叠功能 */
-        .kb-section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            user-select: none;
-            padding: 4px 0;
-            border-radius: 12px;
-            transition: background 0.2s;
-            margin-bottom: 8px;
-        }
+        .kb-section-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; padding: 4px 0; border-radius: 12px; transition: background 0.2s; margin-bottom: 8px; }
         .kb-section-header:hover { background: rgba(97, 92, 237, 0.08); }
-        .kb-collapse-icon {
-            font-size: 18px;
-            transition: transform 0.3s ease;
-            color: var(--text-secondary);
-        }
-        .kb-collapse-icon.collapsed {
-            transform: rotate(-90deg);
-        }
-        .kb-section-content {
-            max-height: 800px;
-            overflow: hidden;
-            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin 0.3s ease;
-            opacity: 1;
-        }
-        .kb-section-content.collapsed {
-            max-height: 0;
-            opacity: 0;
-            margin: 0;
-            padding: 0;
-        }
-        .kb-section {
-            margin-bottom: 16px;
-            padding: 12px;
-            background: var(--knowledge-bg);
-            border-radius: 16px;
-            transition: padding 0.2s;
-        }
+        .kb-collapse-icon { font-size: 18px; transition: transform 0.3s ease; color: var(--text-secondary); }
+        .kb-collapse-icon.collapsed { transform: rotate(-90deg); }
+        .kb-section-content { max-height: 800px; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin 0.3s ease; opacity: 1; }
+        .kb-section-content.collapsed { max-height: 0; opacity: 0; margin: 0; padding: 0; }
+        .kb-section { margin-bottom: 16px; padding: 12px; background: var(--knowledge-bg); border-radius: 16px; transition: padding 0.2s; }
         .kb-toggle { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; }
         .switch { position: relative; display: inline-block; width: 48px; height: 24px; }
         .switch input { opacity: 0; width: 0; height: 0; }
@@ -341,40 +272,12 @@
         .file-list { max-height: 350px; overflow-y: auto; }
         .file-item { background: var(--knowledge-bg); border-radius: 12px; padding: 12px; margin-bottom: 8px; cursor: pointer; }
         .kb-btn { padding: 8px 14px; border-radius: 24px; background: var(--primary-color); border: none; cursor: pointer; font-size: 12px; min-height: 36px; color: white;transition: all 0.2s ease;font-weight: 500;}
-.kb-btn:hover{background:var(--primary-hover);transform:translateY(-1px);box-shadow: 0 2px 8px rgba(97, 92, 237, 0.3);}
-.kb-btn:active { transform: translateY(0);}
+        .kb-btn:hover{background:var(--primary-hover);transform:translateY(-1px);box-shadow: 0 2px 8px rgba(97, 92, 237, 0.3);}
+        .kb-btn:active { transform: translateY(0);}
         .kb-btn.primary { background: var(--primary-color); color: white; border: none; }
         .batch-progress { position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.9); color: white; padding: 12px 20px; border-radius: 40px; display: none; z-index: 2000; font-size: 12px; }
         .sidebar-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1050; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; touch-action: none; }
         .sidebar-overlay.active { opacity: 1; visibility: visible; }
-        
-        @media (max-width: 768px) {
-            .chat-container {
-                padding: 12px;
-            }
-            .input-area {
-                padding: 6px 12px;
-                padding-bottom: max(6px, env(safe-area-inset-bottom));
-            }
-            .quick-template-bar {
-                margin: 0 12px 8px 12px;
-            }
-            .message:has(.avatar.user) .content {
-                background: var(--primary-color);
-                color: white;
-                padding: 10px 14px;
-                border-radius: 18px;
-                border-bottom-right-radius: 4px;
-                max-width: 85%;
-            }
-            .message:has(.avatar.ai) .content {
-                background: var(--ai-msg-bg);
-                padding: 10px 14px;
-                border-radius: 18px;
-                border-bottom-left-radius: 4px;
-                max-width: 90%;
-            }
-        }
         
         .api-selector { display: flex; gap: 8px; margin-bottom: 16px; }
         .api-selector button { flex: 1; padding: 8px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-primary); cursor: pointer; transition: all 0.2s; min-height: 40px; }
@@ -390,214 +293,100 @@
         #kbProgressContainer { margin-top: 10px; }
         #kbProgressBar { width: 0%; height: 4px; background: var(--primary-color); transition: width 0.3s; border-radius: 2px; }
         
-        /* 模板相关样式 */
-        .template-categories {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 12px;
-        }
+        .template-categories { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; }
+        .template-category-btn { padding: 6px 14px; border-radius: 20px; background: var(--ai-msg-bg); border: 1px solid var(--border-color); cursor: pointer; font-size: 13px; color: var(--text-secondary); transition: all 0.2s; touch-action: manipulation; min-height: 36px; }
+        .template-category-btn.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; max-height: 500px; overflow-y: auto; padding: 4px; }
+        .template-card { background: var(--ai-msg-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 14px; cursor: pointer; transition: all 0.2s; position: relative; }
+        .template-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-color: var(--primary-color); }
+        .template-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .template-card-title { font-weight: 600; font-size: 14px; color: var(--text-primary); }
+        .template-card-category { font-size: 10px; padding: 2px 8px; border-radius: 12px; background: var(--primary-color); color: white; }
+        .template-card-preview { font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .template-card-actions { display: flex; gap: 8px; justify-content: flex-end; opacity: 0; transition: opacity 0.2s; }
+        .template-card:hover .template-card-actions { opacity: 1; }
+        .template-card-btn { background: none; border: none; cursor: pointer; font-size: 14px; padding: 4px 8px; border-radius: 8px; color: var(--text-secondary); transition: all 0.2s; min-height: 32px; }
+        .template-card-btn:hover { background: var(--border-color); }
+        .favorite-template { position: absolute; top: 8px; right: 8px; font-size: 16px; cursor: pointer; background: rgba(0,0,0,0.5); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: gold; opacity: 0; transition: opacity 0.2s; }
+        .template-card:hover .favorite-template { opacity: 1; }
+        .quick-template-bar { display: flex; gap: 8px; padding: 8px 12px; background: var(--ai-msg-bg); border-radius: 12px; margin: 0 15% 8px 15%; overflow-x: auto; scrollbar-width: thin; }
+        .quick-template-item { padding: 4px 12px; border-radius: 20px; background: var(--chat-bg); border: 1px solid var(--border-color); font-size: 12px; cursor: pointer; white-space: nowrap; transition: all 0.2s; min-height: 32px; display: inline-flex; align-items: center; gap: 4px; }
+        .quick-template-item:hover { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .template-usage-stats { font-size: 11px; color: var(--text-secondary); margin-top: 8px; padding: 8px; background: var(--knowledge-bg); border-radius: 8px; display: flex; justify-content: space-between; }
+        .variable-badge { display: inline-block; background: var(--primary-color); color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; margin-left: 6px; }
+        @keyframes templatePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .template-applied { animation: templatePulse 0.3s ease; }
         
-        .template-category-btn {
-            padding: 6px 14px;
-            border-radius: 20px;
-            background: var(--ai-msg-bg);
-            border: 1px solid var(--border-color);
-            cursor: pointer;
-            font-size: 13px;
-            color: var(--text-secondary);
-            transition: all 0.2s;
-            touch-action: manipulation;
-            min-height: 36px;
+        /* 调试面板 - 移动端优化位置，避免遮挡输入框 */
+        .debug-panel { 
+            position: fixed; 
+            bottom: 20px; 
+            right: 20px; 
+            background: var(--chat-bg); 
+            border: 1px solid var(--border-color); 
+            border-radius: 12px; 
+            padding: 8px 12px; 
+            font-size: 11px; 
+            z-index: 2000; 
+            cursor: pointer; 
+            font-family: monospace; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
-        
-        .template-category-btn.active {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
+        @media (max-width: 768px) {
+            .debug-panel { 
+                bottom: 80px; 
+                right: 12px; 
+                left: auto;
+                padding: 6px 10px;
+                font-size: 10px;
+            }
         }
-        
-        .template-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 12px;
-            max-height: 500px;
-            overflow-y: auto;
-            padding: 4px;
+        .debug-panel:hover { background: var(--primary-color); color: white; }
+        .kb-debug-console { 
+            position: fixed; 
+            bottom: 70px; 
+            right: 20px; 
+            width: 450px; 
+            max-height: 350px; 
+            background: rgba(0,0,0,0.95); 
+            color: #0f0; 
+            font-family: monospace; 
+            font-size: 11px; 
+            border-radius: 12px; 
+            padding: 12px; 
+            overflow-y: auto; 
+            z-index: 2100; 
+            display: none; 
+            backdrop-filter: blur(8px); 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3); 
         }
-        
-        .template-card {
-            background: var(--ai-msg-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 14px;
-            cursor: pointer;
-            transition: all 0.2s;
-            position: relative;
+        @media (max-width: 768px) {
+            .kb-debug-console { 
+                width: calc(100% - 40px); 
+                right: 20px; 
+                left: 20px; 
+                bottom: 90px; 
+                max-height: 55vh; 
+            }
         }
-        
-        .template-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            border-color: var(--primary-color);
-        }
-        
-        .template-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        
-        .template-card-title {
-            font-weight: 600;
-            font-size: 14px;
-            color: var(--text-primary);
-        }
-        
-        .template-card-category {
-            font-size: 10px;
-            padding: 2px 8px;
-            border-radius: 12px;
-            background: var(--primary-color);
-            color: white;
-        }
-        
-        .template-card-preview {
-            font-size: 12px;
-            color: var(--text-secondary);
-            line-height: 1.4;
-            margin-bottom: 10px;
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-        }
-        
-        .template-card-actions {
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-        
-        .template-card:hover .template-card-actions {
-            opacity: 1;
-        }
-        
-        .template-card-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 14px;
-            padding: 4px 8px;
-            border-radius: 8px;
-            color: var(--text-secondary);
-            transition: all 0.2s;
-            min-height: 32px;
-        }
-        
-        .template-card-btn:hover {
-            background: var(--border-color);
-        }
-        
-        .favorite-template {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            background: rgba(0,0,0,0.5);
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: gold;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-        
-        .template-card:hover .favorite-template {
-            opacity: 1;
-        }
-        
-        .quick-template-bar {
-            display: flex;
-            gap: 8px;
-            padding: 8px 12px;
-            background: var(--ai-msg-bg);
-            border-radius: 12px;
-            margin: 0 15% 8px 15%;
-            overflow-x: auto;
-            scrollbar-width: thin;
-        }
-        
-        .quick-template-item {
-            padding: 4px 12px;
-            border-radius: 20px;
-            background: var(--chat-bg);
-            border: 1px solid var(--border-color);
-            font-size: 12px;
-            cursor: pointer;
-            white-space: nowrap;
-            transition: all 0.2s;
-            min-height: 32px;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-        }
-        
-        .quick-template-item:hover {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-        
-        .template-usage-stats {
-            font-size: 11px;
-            color: var(--text-secondary);
-            margin-top: 8px;
-            padding: 8px;
-            background: var(--knowledge-bg);
-            border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-        }
-        
-        .variable-badge {
-            display: inline-block;
-            background: var(--primary-color);
-            color: white;
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 10px;
-            margin-left: 6px;
-        }
-        
-        @keyframes templatePulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        
-        .template-applied {
-            animation: templatePulse 0.3s ease;
-        }
+        .kb-debug-console.show { display: block; }
+        .kb-debug-console .log-entry { border-bottom: 1px solid #333; padding: 4px 0; word-break: break-all; font-size: 10px; }
+        .kb-debug-console .error { color: #f66; }
+        .kb-debug-console .success { color: #6f6; }
+        .kb-debug-console .info { color: #6cf; }
+        .debug-header { display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #333; font-weight: bold; }
+        .debug-close { background: none; border: none; color: #0f0; cursor: pointer; font-size: 14px; }
+        .debug-clear { background: none; border: 1px solid #333; color: #0f0; cursor: pointer; padding: 2px 8px; border-radius: 4px; font-size: 10px; }
+        .debug-clear:hover { background: #333; }
     </style>
 </head>
 <body>
-    <!-- 移动端菜单按钮 -->
-    <button class="mobile-menu-toggle" onclick="toggleSidebar()" aria-label="菜单">☰</button>
+    <button class="mobile-menu-toggle" onclick="toggleSidebar()">☰</button>
     <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
     
     <div class="sidebar" id="sidebar">
         <button class="new-chat-btn" onclick="createNewChat()"><span>+</span> 新建对话</button>
         
-        <!-- 知识库区域：折叠功能 -->
         <div class="kb-section" id="kbSection">
             <div class="kb-section-header" onclick="toggleKbPanel()">
                 <span style="font-weight: 500;">📚 知识库RAG检索 <span id="kbStatusBadge" class="kb-status-badge">已开启</span></span>
@@ -609,12 +398,12 @@
                     <label class="switch"><input type="checkbox" id="kbEnabledSwitch"><span class="slider"></span></label>
                 </div>
                 <button class="kb-open-btn" onclick="openKbModal()">📂 打开知识库管理</button>
-                <div class="supported-formats">📄 支持: TXT, MD, PDF, DOCX, XLSX, PNG, JPG | OCR识别 | 按需加载</div>
+                <div class="supported-formats">📄 支持: TXT, MD, PDF, DOCX, XLSX, PNG, JPG | OCR识别 | 增强分词(BM25)</div>
                 <div class="rag-config">
                     <div>⚙️ RAG配置</div>
-                    <select id="ragStrategy"><option value="hybrid">🎯 混合检索</option><option value="semantic">📐 语义检索</option><option value="keyword">🔤 关键词检索</option></select>
-                    <div><span>📊 Top-K: </span><input type="number" id="ragTopK" min="1" max="10" value="5" style="width: 60px;">
-                    <span>🎚️ 阈值: </span><input type="range" id="ragThreshold" min="0" max="0.5" step="0.01" value="0.08" style="width: 80px;"><span id="thresholdValue">0.08</span></div>
+                    <select id="ragStrategy"><option value="hybrid">🎯 混合检索(BM25+语义)</option><option value="semantic">📐 语义检索</option><option value="keyword">🔤 关键词检索</option></select>
+                    <div><span>📊 Top-K: </span><input type="number" id="ragTopK" min="1" max="20" value="8" style="width: 60px;">
+                    <span>🎚️ 阈值: </span><input type="range" id="ragThreshold" min="0" max="0.5" step="0.01" value="0.05" style="width: 80px;"><span id="thresholdValue">0.05</span></div>
                     <div class="rag-stats" id="ragStats">📊 索引状态: 待加载</div>
                     <div id="kbProgressContainer" style="display:none;">
                         <div style="background: var(--border-color); border-radius: 10px; overflow: hidden;">
@@ -662,13 +451,12 @@
         </div>
         <div class="chat-container" id="chatContainer">
             <div id="welcomeMsg">
-                <h2>✨ 通义千问 · RAG知识库增强版</h2>
-                <p>🔍 混合检索 | 📄 语义分块 | 🎯 知识库开关 | 📎 附件上传 | 🎤 语音播报 | 📋 模板库 | ➕ 继续生成 | 💾 按需加载 | 💽 全局备份恢复 | 🎨 代码高亮</p>
-                <p style="font-size:13px; margin-top:8px; background: var(--knowledge-bg); padding: 8px; border-radius: 12px;">💡 <strong>按需加载模式</strong>：知识库文件存储在 IndexedDB，检索时按需加载，内存占用更小 | 点击「知识库RAG检索」标题可折叠/展开面板</p>
+                <h2>✨ 本地模型 · RAG知识库增强版</h2>
+                <p>🔍 增强分词(BM25) | 📄 语义分块 | 🎯 知识库开关 | 📎 附件上传 | 🎤 语音播报 | 📋 模板库 | ➕ 继续生成 | 💾 按需加载 | 💽 全局备份恢复 | 🎨 代码高亮</p>
+                <p style="font-size:13px; margin-top:8px; background: var(--knowledge-bg); padding: 8px; border-radius: 12px;">💡 <strong>增强版知识库</strong>：支持1-6字中文分词、2字母以上英文、词干提取、BM25排序 | 点击右下角「🔧调试」查看索引状态</p>
             </div>
         </div>
         
-        <!-- 快捷模板栏 -->
         <div class="quick-template-bar" id="quickTemplateBar" style="display: none;">
             <span style="color: var(--text-secondary); font-size: 12px;">⚡</span>
         </div>
@@ -687,6 +475,19 @@
                 <button class="stop-btn" id="stopBtn" onclick="stopGeneration()">⏹️</button>
             </div>
         </div>
+    </div>
+    
+    <!-- 调试面板 - 移动端调整位置，不遮挡发送按钮 -->
+    <div class="debug-panel" onclick="toggleDebugConsole()">🔧 </div>
+    <div class="kb-debug-console" id="kbDebugConsole">
+        <div class="debug-header">
+            <strong>📊 知识库调试日志</strong>
+            <div>
+                <button class="debug-clear" onclick="clearDebugLog()">清空</button>
+                <button class="debug-close" onclick="toggleDebugConsole()">✕</button>
+            </div>
+        </div>
+        <div id="debugLogContent"></div>
     </div>
     
     <!-- 全局备份恢复模态框 -->
@@ -742,7 +543,6 @@
         </div>
     </div>
     
-    <!-- 增强的模板编辑对话框 -->
     <div class="modal-overlay" id="templateDialog" style="display:none;" onclick="if(event.target===this) closeTemplateDialog()">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
@@ -750,26 +550,12 @@
                 <button class="icon-btn" onclick="closeTemplateDialog()">✕</button>
             </div>
             <div class="modal-body">
-                <input type="text" id="templateName" placeholder="模板名称 (例如: 代码审查助手)" style="width:100%; padding:10px; margin-bottom:12px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color);">
-                
+                <input type="text" id="templateName" placeholder="模板名称" style="width:100%; padding:10px; margin-bottom:12px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color);">
                 <select id="templateCategory" style="width:100%; padding:10px; margin-bottom:12px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color);">
-                    <option value="通用">📌 通用</option>
-                    <option value="编程">💻 编程</option>
-                    <option value="写作">✍️ 写作</option>
-                    <option value="翻译">🌐 翻译</option>
-                    <option value="分析">📊 分析</option>
-                    <option value="教育">📚 教育</option>
-                    <option value="创意">🎨 创意</option>
+                    <option value="通用">📌 通用</option><option value="编程">💻 编程</option><option value="写作">✍️ 写作</option>
+                    <option value="翻译">🌐 翻译</option><option value="分析">📊 分析</option><option value="教育">📚 教育</option><option value="创意">🎨 创意</option>
                 </select>
-                
-                <textarea id="templateContent" rows="6" placeholder="模板内容...
-支持变量: {{input}} - 用户输入占位符
-示例: 请将以下内容翻译成英文: {{input}}" style="width:100%; padding:10px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color);"></textarea>
-                
-                <div style="font-size: 12px; color: var(--text-secondary); margin: 8px 0;">
-                    💡 提示: 使用 <code style="background: var(--code-bg); padding: 2px 6px; border-radius: 4px;">{{input}}</code> 作为用户输入占位符
-                </div>
-                
+                <textarea id="templateContent" rows="6" placeholder="模板内容...&#10;支持变量: {{input}}" style="width:100%; padding:10px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color);"></textarea>
                 <div class="dialog-buttons" style="margin-top: 16px;">
                     <button class="kb-btn" style="flex:1;" onclick="closeTemplateDialog()">取消</button>
                     <button class="kb-btn primary" style="flex:1;" onclick="saveTemplate()">保存</button>
@@ -814,37 +600,41 @@
         // PDF.js Worker 配置
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
         
-        // 配置 marked 支持代码高亮
+        // ==================== 调试日志系统 ====================
+        let debugLogs = [];
+        function addDebugLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            debugLogs.unshift({ timestamp, message, type });
+            if (debugLogs.length > 100) debugLogs.pop();
+            const container = document.getElementById('debugLogContent');
+            if (container) {
+                container.innerHTML = debugLogs.map(log => 
+                    `<div class="log-entry ${log.type}">[${log.timestamp}] ${escapeHtml(log.message)}</div>`
+                ).join('');
+            }
+            console.log(`[KB] ${message}`);
+        }
+        
+        function toggleDebugConsole() { document.getElementById('kbDebugConsole').classList.toggle('show'); }
+        function clearDebugLog() { debugLogs = []; document.getElementById('debugLogContent').innerHTML = ''; addDebugLog('日志已清空', 'success'); }
+        
+        // 配置 marked
         if (typeof marked !== 'undefined') {
             const renderer = new marked.Renderer();
             renderer.code = function(code, language) {
-                // 验证语言是否有效
                 const validLang = !!(language && hljs.getLanguage(language));
-                const highlighted = validLang 
-                    ? hljs.highlight(code, { language }).value 
-                    : hljs.highlightAuto(code).value;
-                
+                const highlighted = validLang ? hljs.highlight(code, { language }).value : hljs.highlightAuto(code).value;
                 const langLabel = validLang ? language : 'code';
                 return `<pre><code class="hljs language-${language || 'plaintext'}">${highlighted}</code><div class="code-lang-badge">${langLabel}</div></pre>`;
             };
-            
-            marked.setOptions({ 
-                renderer: renderer,
-                breaks: true, 
-                gfm: true, 
-                headerIds: false, 
-                mangle: false 
-            });
+            marked.setOptions({ renderer: renderer, breaks: true, gfm: true, headerIds: false, mangle: false });
         }
         
-        // ==================== 代码高亮辅助函数 ====================
         function applyCodeHighlighting(element) {
             if (!element) return;
-            // 对元素内的所有代码块进行高亮
             element.querySelectorAll('pre code').forEach(block => {
                 if (!block.classList.contains('hljs')) {
                     hljs.highlightElement(block);
-                    // 添加语言标签
                     const pre = block.parentElement;
                     if (pre && !pre.querySelector('.code-lang-badge')) {
                         const lang = block.className.match(/language-(\w+)/)?.[1] || 'code';
@@ -858,35 +648,24 @@
             });
         }
         
-        // 监听动态内容变化，自动高亮新代码块
         function observeCodeHighlighting() {
             const chatContainer = document.getElementById('chatContainer');
             if (!chatContainer) return;
-            
             const observer = new MutationObserver((mutations) => {
                 mutations.forEach((mutation) => {
                     mutation.addedNodes.forEach((node) => {
-                        if (node.nodeType === Node.ELEMENT_NODE) {
-                            applyCodeHighlighting(node);
-                        }
+                        if (node.nodeType === Node.ELEMENT_NODE) applyCodeHighlighting(node);
                     });
                 });
             });
-            
-            observer.observe(chatContainer, {
-                childList: true,
-                subtree: true
-            });
+            observer.observe(chatContainer, { childList: true, subtree: true });
         }
         
-        // 重写 renderMarkdown 以支持高亮
-        const originalRenderMarkdown = window.renderMarkdown;
         window.renderMarkdown = async function(t) {
             if (!t) return '';
             if (typeof marked !== 'undefined') {
                 let h = await marked.parse(t);
                 if (typeof DOMPurify !== 'undefined') h = DOMPurify.sanitize(h);
-                // 临时容器用于高亮
                 const temp = document.createElement('div');
                 temp.innerHTML = h;
                 applyCodeHighlighting(temp);
@@ -922,16 +701,13 @@
             }
         }
         
-        // ==================== 侧边栏切换功能（同时支持桌面和移动端） ====================
+        // ==================== 侧边栏切换 ====================
         let sidebarCollapsed = false;
-        
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.querySelector('.sidebar-overlay');
             const isMobile = window.innerWidth <= 768;
-            
             if (!sidebar) return;
-            
             if (isMobile) {
                 if (sidebar.classList.contains('open')) {
                     sidebar.classList.remove('open');
@@ -944,11 +720,8 @@
                 }
             } else {
                 sidebarCollapsed = !sidebarCollapsed;
-                if (sidebarCollapsed) {
-                    sidebar.classList.add('collapsed-desktop');
-                } else {
-                    sidebar.classList.remove('collapsed-desktop');
-                }
+                if (sidebarCollapsed) sidebar.classList.add('collapsed-desktop');
+                else sidebar.classList.remove('collapsed-desktop');
                 localStorage.setItem('sidebar_collapsed', sidebarCollapsed);
             }
         }
@@ -960,37 +733,13 @@
                     sidebarCollapsed = true;
                     const sidebar = document.getElementById('sidebar');
                     if (sidebar) sidebar.classList.add('collapsed-desktop');
-                } else {
-                    sidebarCollapsed = false;
                 }
             }
         }
         
-        document.getElementById('sidebar')?.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-        
-        let touchStartX = 0;
-        let touchEndX = 0;
-        
-        document.addEventListener('touchstart', function(e) {
-            touchStartX = e.changedTouches[0].screenX;
-        }, { passive: true });
-        
-        document.addEventListener('touchend', function(e) {
-            if (window.innerWidth <= 768) {
-                touchEndX = e.changedTouches[0].screenX;
-                const sidebar = document.getElementById('sidebar');
-                if (sidebar && sidebar.classList.contains('open') && (touchEndX - touchStartX > 50)) {
-                    toggleSidebar();
-                }
-            }
-        });
-        
         window.addEventListener('resize', function() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.querySelector('.sidebar-overlay');
-            
             if (window.innerWidth > 768) {
                 if (sidebar && sidebar.classList.contains('open')) {
                     sidebar.classList.remove('open');
@@ -1009,7 +758,6 @@
                 this.currentUtterance = null;
                 this.isPlaying = false;
                 this.isPaused = false;
-                this.currentText = '';
                 this.speechSupported = typeof window.speechSynthesis !== 'undefined';
                 if (this.speechSupported) speechSynthesis.getVoices();
             }
@@ -1036,8 +784,6 @@
                 utterance.onstart = () => { this.isPlaying = true; this.isPaused = false; this.currentUtterance = utterance; this.updateUI(); if (options.onStart) options.onStart(); };
                 utterance.onend = () => { this.isPlaying = false; this.isPaused = false; this.currentUtterance = null; this.updateUI(); if (options.onEnd) options.onEnd(); };
                 utterance.onerror = (e) => { console.warn('Speech error:', e); this.isPlaying = false; this.isPaused = false; this.updateUI(); };
-                utterance.onpause = () => { this.isPaused = true; this.updateUI(); };
-                utterance.onresume = () => { this.isPaused = false; this.updateUI(); };
                 this.currentUtterance = utterance;
                 window.speechSynthesis.speak(utterance);
                 return this;
@@ -1079,11 +825,7 @@
             select.innerHTML = '<option value="">默认语音</option>' + sorted.map(v => `<option value="${v.name.replace(/"/g, '&quot;')}" ${v.name === saved ? 'selected' : ''}>${v.name} (${v.lang})</option>`).join(''); 
         }
         
-        function showLoading() {
-            let loader = document.querySelector('.loading-overlay');
-            if (!loader) { loader = document.createElement('div'); loader.className = 'loading-overlay'; loader.innerHTML = '<div class="spinner"></div>'; document.body.appendChild(loader); }
-            loader.style.display = 'flex';
-        }
+        function showLoading() { let loader = document.querySelector('.loading-overlay'); if (!loader) { loader = document.createElement('div'); loader.className = 'loading-overlay'; loader.innerHTML = '<div class="spinner"></div>'; document.body.appendChild(loader); } loader.style.display = 'flex'; }
         function hideLoading() { const loader = document.querySelector('.loading-overlay'); if (loader) loader.style.display = 'none'; }
         function showToast(msg) { let t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2000); }
         function escapeHtml(s) { if (!s) return ''; const div = document.createElement('div'); div.textContent = s; return div.innerHTML; }
@@ -1150,8 +892,8 @@
         async function loadAllChats() { await openDB(); return new Promise(res => { let tx = db.transaction([STORE_CHATS], 'readonly'); let r = tx.objectStore(STORE_CHATS).getAll(); r.onsuccess = () => { chats = r.result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); res(chats); }; r.onerror = () => res([]); }); }
         async function getChatCount() { await openDB(); return new Promise(res => { let tx = db.transaction([STORE_CHATS], 'readonly'); let r = tx.objectStore(STORE_CHATS).count(); r.onsuccess = () => res(r.result); r.onerror = () => res(0); }); }
         
-        // ==================== 倒排索引引擎 ====================
-        class InvertedIndexEngine {
+        // ==================== 增强的倒排索引引擎 ====================
+        class EnhancedInvertedIndexEngine {
             constructor() {
                 this.invertedIndex = new Map();
                 this.fileMetadata = new Map();
@@ -1164,23 +906,59 @@
             tokenize(text) {
                 if (!text) return [];
                 let cleaned = text.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]*`/g, ' ').replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ' ');
-                const tokens = [];
-                const chineseMatches = cleaned.match(/[\u4e00-\u9fa5]{2,4}/g);
-                if (chineseMatches) tokens.push(...chineseMatches);
-                const englishMatches = cleaned.match(/[a-zA-Z]{3,}/g);
-                if (englishMatches) tokens.push(...englishMatches.map(w => w.toLowerCase()));
-                return [...new Set(tokens)];
+                const tokens = new Set();
+                
+                // 中文分词：支持1-6字
+                const chineseSeq = cleaned.match(/[\u4e00-\u9fa5]+/g);
+                if (chineseSeq) {
+                    for (const seq of chineseSeq) {
+                        if (seq.length >= 1) tokens.add(seq);
+                        if (seq.length >= 2) {
+                            for (let i = 0; i <= seq.length - 2; i++) {
+                                tokens.add(seq.substring(i, i + 2));
+                                if (i + 3 <= seq.length) tokens.add(seq.substring(i, i + 3));
+                                if (i + 4 <= seq.length) tokens.add(seq.substring(i, i + 4));
+                            }
+                        }
+                    }
+                }
+                
+                // 英文分词：支持2字母以上，带词干
+                const englishMatches = cleaned.match(/[a-zA-Z]{2,}/g);
+                if (englishMatches) {
+                    for (const word of englishMatches) {
+                        const lower = word.toLowerCase();
+                        tokens.add(lower);
+                        if (lower.endsWith('ing') && lower.length > 4) tokens.add(lower.slice(0, -3));
+                        if (lower.endsWith('ed') && lower.length > 3) tokens.add(lower.slice(0, -2));
+                        if (lower.endsWith('s') && lower.length > 2 && !lower.endsWith('ss')) tokens.add(lower.slice(0, -1));
+                        if (lower.endsWith('er') && lower.length > 3) tokens.add(lower.slice(0, -2));
+                        if (lower.endsWith('ly') && lower.length > 3) tokens.add(lower.slice(0, -2));
+                    }
+                }
+                
+                const numbers = cleaned.match(/[0-9]{2,}/g);
+                if (numbers) numbers.forEach(n => tokens.add(n));
+                
+                return Array.from(tokens);
             }
             
-            extractKeywords(text) {
+            extractKeywords(text, topK = 20) {
                 const tokens = this.tokenize(text);
                 const freq = new Map();
                 for (const token of tokens) freq.set(token, (freq.get(token) || 0) + 1);
-                return Array.from(freq.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([word]) => word);
+                const totalDocs = this.totalChunks || 1;
+                const keywords = Array.from(freq.entries()).map(([word, tf]) => {
+                    const df = this.invertedIndex.get(word)?.size || 1;
+                    const idf = Math.log((totalDocs + 1) / (df + 0.5));
+                    return { word, score: tf * idf };
+                });
+                keywords.sort((a, b) => b.score - a.score);
+                return keywords.slice(0, topK).map(k => k.word);
             }
             
             async buildIndex(kbStorage) {
-                console.log('开始构建倒排索引...');
+                addDebugLog('开始构建倒排索引...', 'info');
                 const startTime = performance.now();
                 this.invertedIndex.clear();
                 this.fileMetadata.clear();
@@ -1188,54 +966,69 @@
                 this.totalChunks = 0;
                 
                 const files = await kbStorage.getAllFilesMetadata();
+                addDebugLog(`找到 ${files.length} 个文件`);
+                
                 for (const file of files) {
-                    this.fileMetadata.set(file.id, { name: file.name, type: file.type, size: file.size, chunkIds: [] });
+                    this.fileMetadata.set(file.id, { name: file.name, chunkIds: [] });
                     const chunksInfo = await kbStorage.getFileChunksInfo(file.id);
+                    addDebugLog(`文件 "${file.name}" 有 ${chunksInfo.length} 个分块`);
+                    
                     for (const chunk of chunksInfo) {
                         const chunkId = chunk.id;
                         const tokens = this.tokenize(chunk.text);
-                        this.chunkMetadata.set(chunkId, { fileId: file.id, fileName: file.name, position: chunk.position, tokenCount: tokens.length });
+                        this.chunkMetadata.set(chunkId, { fileId: file.id, fileName: file.name, text: chunk.text });
                         this.fileMetadata.get(file.id).chunkIds.push(chunkId);
-                        for (const token of tokens) {
+                        
+                        const termFreq = new Map();
+                        for (const token of tokens) termFreq.set(token, (termFreq.get(token) || 0) + 1);
+                        for (const [token, tf] of termFreq.entries()) {
                             if (!this.invertedIndex.has(token)) this.invertedIndex.set(token, new Map());
-                            const chunkMap = this.invertedIndex.get(token);
-                            chunkMap.set(chunkId, (chunkMap.get(chunkId) || 0) + 1);
+                            this.invertedIndex.get(token).set(chunkId, tf);
                         }
                         this.totalChunks++;
                     }
                 }
                 this.vocabularySize = this.invertedIndex.size;
                 this.isDirty = false;
-                const duration = performance.now() - startTime;
-                console.log(`倒排索引构建完成: ${this.totalChunks} 块, ${this.vocabularySize} 词项, 耗时 ${duration.toFixed(2)}ms`);
-                return { totalChunks: this.totalChunks, vocabularySize: this.vocabularySize, duration };
+                addDebugLog(`✅ 索引完成: ${this.totalChunks}块, ${this.vocabularySize}词项`, 'success');
+                return { totalChunks: this.totalChunks, vocabularySize: this.vocabularySize };
             }
             
             search(query, topK = 10) {
                 if (this.isDirty) return [];
-                const keywords = this.extractKeywords(query);
+                const keywords = this.extractKeywords(query, 20);
                 if (keywords.length === 0) return [];
+                
                 const scores = new Map();
-                const k1 = 1.2, b = 0.75;
-                const avgChunkLen = this.totalChunks > 0 ? Array.from(this.chunkMetadata.values()).reduce((sum, c) => sum + c.tokenCount, 0) / this.totalChunks : 100;
+                const k1 = 1.5, b = 0.75;
+                const avgChunkLen = this.totalChunks > 0 ? 300 : 100;
+                
                 for (const keyword of keywords) {
                     const chunkMap = this.invertedIndex.get(keyword);
                     if (!chunkMap) continue;
-                    const df = chunkMap.size;
-                    const idf = Math.log((this.totalChunks - df + 0.5) / (df + 0.5) + 1);
+                    const idf = Math.log((this.totalChunks + 1) / (chunkMap.size + 0.5));
                     for (const [chunkId, tf] of chunkMap.entries()) {
                         const chunkInfo = this.chunkMetadata.get(chunkId);
                         if (!chunkInfo) continue;
-                        const docLenNorm = chunkInfo.tokenCount / avgChunkLen;
-                        const tfNorm = (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * docLenNorm));
-                        const score = idf * tfNorm;
-                        scores.set(chunkId, (scores.get(chunkId) || 0) + score);
+                        const docLen = chunkInfo.text?.length || 300;
+                        const tfNorm = (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (docLen / avgChunkLen)));
+                        scores.set(chunkId, (scores.get(chunkId) || 0) + idf * tfNorm);
                     }
                 }
-                return Array.from(scores.entries()).sort((a, b) => b[1] - a[1]).slice(0, topK).map(([chunkId, score]) => ({ chunkId, score, ...this.chunkMetadata.get(chunkId) }));
+                
+                const results = Array.from(scores.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, topK)
+                    .map(([chunkId, score]) => ({ chunkId, score, ...this.chunkMetadata.get(chunkId) }));
+                
+                if (results.length) addDebugLog(`搜索到 ${results.length} 条结果`, 'success');
+                else addDebugLog(`未找到结果: "${query.substring(0, 50)}"`, 'error');
+                return results;
             }
             
-            getStats() { return { totalChunks: this.totalChunks, vocabularySize: this.vocabularySize, totalFiles: this.fileMetadata.size }; }
+            getStats() {
+                return { totalChunks: this.totalChunks, vocabularySize: this.vocabularySize, totalFiles: this.fileMetadata.size };
+            }
         }
         
         // ==================== IndexedDB 知识库存储 ====================
@@ -1302,7 +1095,7 @@
                     const tx = dbInst.transaction(['chunks'], 'readonly');
                     const index = tx.objectStore('chunks').index('fileId');
                     const request = index.getAll(fileId);
-                    request.onsuccess = () => resolve((request.result || []).map(chunk => ({ id: chunk.id, position: chunk.position, text: chunk.text.substring(0, 200) })));
+                    request.onsuccess = () => resolve((request.result || []).map(chunk => ({ id: chunk.id, position: chunk.position, text: chunk.text.substring(0, 500) })));
                     request.onerror = () => reject(request.error);
                 });
             }
@@ -1390,7 +1183,7 @@
         class OnDemandRAGEngine {
             constructor() {
                 this.store = new IndexedDBKnowledgeStore();
-                this.invertedIndex = new InvertedIndexEngine();
+                this.invertedIndex = new EnhancedInvertedIndexEngine();
                 this.isInitialized = false;
             }
             
@@ -1402,7 +1195,9 @@
             }
             
             async rebuildIndex() {
+                addDebugLog('重建索引...', 'info');
                 await this.invertedIndex.buildIndex(this.store);
+                addDebugLog('索引重建完成', 'success');
                 return this.invertedIndex.getStats();
             }
             
@@ -1422,15 +1217,15 @@
             }
             
             async search(query, options = {}) {
-                const { topK = 5 } = options;
-                const candidates = this.invertedIndex.search(query, topK * 3);
+                const { topK = 8 } = options;
+                const candidates = this.invertedIndex.search(query, topK * 2);
                 if (candidates.length === 0) return [];
                 const chunksWithContent = [];
                 for (const candidate of candidates) {
                     const content = await this.store.loadChunk(candidate.chunkId);
                     if (content) chunksWithContent.push({ ...candidate, text: content });
                 }
-                return chunksWithContent.slice(0, topK).map(r => ({ chunkId: r.chunkId, fileId: r.fileId, fileName: r.fileName, text: r.text.substring(0, 500), score: r.score }));
+                return chunksWithContent.slice(0, topK);
             }
             
             async getStats() {
@@ -1458,11 +1253,13 @@
                 this.engine = new OnDemandRAGEngine();
                 await this.engine.init();
                 this.isInitialized = true;
+                addDebugLog('知识库管理器初始化完成', 'success');
             }
             
             semanticChunking(text, options = {}) {
-                const maxChunkSize = options.maxChunkSize || 500;
-                if (!text || text.length < 100) return text ? [{ id: `c_${Date.now()}_0`, text: text, vector: null, position: 0 }] : [];
+                const maxChunkSize = options.maxChunkSize || 800;
+                if (!text || text.length < 50) return text ? [{ id: `c_${Date.now()}_0`, text: text, vector: null, position: 0 }] : [];
+                
                 const paragraphs = text.split(/\n\s*\n/);
                 const chunks = [];
                 let current = '';
@@ -1470,10 +1267,30 @@
                     if ((current + para).length <= maxChunkSize) current += (current ? '\n\n' : '') + para;
                     else {
                         if (current.trim()) chunks.push(current.trim());
-                        current = para;
+                        if (para.length > maxChunkSize) {
+                            const sentences = para.split(/(?<=[。！？!?])\s*/);
+                            let temp = '';
+                            for (let sent of sentences) {
+                                if ((temp + sent).length <= maxChunkSize) temp += (temp ? '' : '') + sent;
+                                else {
+                                    if (temp.trim()) chunks.push(temp.trim());
+                                    temp = sent;
+                                }
+                            }
+                            current = temp;
+                        } else {
+                            current = para;
+                        }
                     }
                 }
                 if (current.trim()) chunks.push(current.trim());
+                
+                if (chunks.length === 0 && text.length > maxChunkSize) {
+                    for (let i = 0; i < text.length; i += maxChunkSize) {
+                        chunks.push(text.substring(i, i + maxChunkSize));
+                    }
+                }
+                
                 return chunks.map((text, i) => ({ id: `c_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 6)}`, text: text, vector: null, position: i }));
             }
             
@@ -1496,7 +1313,8 @@
                     const file = files[i];
                     try {
                         onProgress?.(i + 1, files.length, `处理: ${file.name}`);
-                        if (file.size > this.maxFileSize) throw new Error(`文件过大`);
+                        addDebugLog(`处理文件 ${i+1}/${files.length}: ${file.name}`);
+                        if (file.size > this.maxFileSize) throw new Error(`文件过大 (${formatFileSize(file.size)})`);
                         const content = await this.parseFile(file);
                         if (!content || content.trim().length === 0) throw new Error('文件内容为空');
                         const chunks = this.semanticChunking(content);
@@ -1504,9 +1322,14 @@
                         const kbFile = { id: `${Date.now()}_${file.name}_${i}`, name: file.name, type: file.name.split('.').pop(), size: file.size, content: content, chunks: chunks, metadata: { uploadedAt: new Date().toISOString() } };
                         await this.engine.addFile(kbFile);
                         results.success.push({ name: file.name, size: file.size });
-                    } catch (error) { results.failed.push({ name: file.name, error: error.message }); }
+                        addDebugLog(`✅ 成功: ${file.name} (${chunks.length} 块)`, 'success');
+                    } catch (error) {
+                        results.failed.push({ name: file.name, error: error.message });
+                        addDebugLog(`❌ 失败: ${file.name} - ${error.message}`, 'error');
+                    }
                 }
                 await this.updateStatsUI();
+                addDebugLog(`上传完成: 成功 ${results.success.length}, 失败 ${results.failed.length}`, results.failed.length > 0 ? 'error' : 'success');
                 return results;
             }
             
@@ -1516,7 +1339,7 @@
             async getFileList() { await this.ensureInit(); return this.engine.store.getAllFilesMetadata(); }
             async updateStatsUI() {
                 const stats = await this.engine.getStats();
-                const event = new CustomEvent('kbStatsUpdated', { detail: { totalFiles: stats.fileCount, totalChunks: stats.chunkCount, vocabularySize: stats.vocabularySize, cacheSize: stats.cacheSize } });
+                const event = new CustomEvent('kbStatsUpdated', { detail: { totalFiles: stats.fileCount, totalChunks: stats.totalChunks, vocabularySize: stats.vocabularySize, cacheSize: stats.cacheSize } });
                 window.dispatchEvent(event);
             }
             async ensureInit() { if (!this.isInitialized) await this.init(); }
@@ -1525,18 +1348,92 @@
             
             async parseFile(file) {
                 const ext = file.name.split('.').pop().toLowerCase();
-                if (['txt', 'md', 'json', 'js', 'py', 'html', 'css'].includes(ext)) return await this.readTextFile(file);
+                addDebugLog(`解析文件: ${file.name} (${ext}, ${(file.size/1024).toFixed(1)}KB)`);
+                
+                if (['txt', 'md', 'json', 'js', 'py', 'html', 'css', 'xml', 'yaml', 'yml'].includes(ext)) return await this.readTextFile(file);
                 if (ext === 'pdf') return await this.parsePDF(file);
                 if (ext === 'docx') return await this.parseDOCX(file);
                 if (['xlsx', 'xls'].includes(ext)) return await this.parseExcel(file);
-                if (['png', 'jpg', 'jpeg'].includes(ext)) return await this.parseImage(file);
+                if (['png', 'jpg', 'jpeg', 'bmp', 'gif'].includes(ext)) return await this.parseImage(file);
                 throw new Error(`不支持的文件类型: ${ext}`);
             }
-            async readTextFile(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = (e) => resolve(e.target.result); reader.onerror = () => reject(new Error('文件读取失败')); reader.readAsText(file, 'UTF-8'); }); }
-            async parsePDF(file, maxPages = 50) { const arrayBuffer = await file.arrayBuffer(); const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise; const totalPages = Math.min(pdf.numPages, maxPages); let text = ''; for (let i = 1; i <= totalPages; i++) { const page = await pdf.getPage(i); const content = await page.getTextContent(); text += content.items.map(item => item.str).join(' ') + '\n'; if (text.length > 100000) break; } return text; }
-            async parseDOCX(file) { const arrayBuffer = await file.arrayBuffer(); const result = await mammoth.extractRawText({ arrayBuffer }); return result.value; }
-            async parseExcel(file) { const arrayBuffer = await file.arrayBuffer(); const workbook = XLSX.read(arrayBuffer, { cellText: false }); let text = ''; for (const sheetName of workbook.SheetNames.slice(0, 5)) { const sheet = workbook.Sheets[sheetName]; const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }); text += `\n【工作表: ${sheetName}】\n`; for (const row of data.slice(0, 100)) text += row.join(' ') + '\n'; } return text; }
-            async parseImage(file) { const url = URL.createObjectURL(file); try { const { data: { text } } = await Tesseract.recognize(url, 'chi_sim+eng'); return text; } finally { URL.revokeObjectURL(url); } }
+            
+            async readTextFile(file) { 
+                return new Promise((resolve, reject) => { 
+                    const reader = new FileReader(); 
+                    reader.onload = (e) => resolve(e.target.result); 
+                    reader.onerror = () => reject(new Error('文件读取失败')); 
+                    reader.readAsText(file, 'UTF-8'); 
+                }); 
+            }
+            
+            async parsePDF(file, maxPages = 100) { 
+                addDebugLog(`解析 PDF: ${file.name}`);
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const totalPages = Math.min(pdf.numPages, maxPages);
+                let text = '';
+                for (let i = 1; i <= totalPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    text += content.items.map(item => item.str).join(' ') + '\n';
+                    if (text.length > 500000) break;
+                }
+                addDebugLog(`PDF 解析完成: ${text.length} 字符`);
+                return text;
+            }
+            
+            async parseDOCX(file) {
+                addDebugLog(`解析 DOCX: ${file.name}`);
+                const arrayBuffer = await file.arrayBuffer();
+                try {
+                    const result = await mammoth.extractRawText({ arrayBuffer });
+                    let text = result.value;
+                    addDebugLog(`Mammoth 解析: ${text.length} 字符`);
+                    
+                    if (!text || text.trim().length === 0) {
+                        addDebugLog('尝试备用解析...', 'info');
+                        const decoder = new TextDecoder('utf-8');
+                        const xmlString = decoder.decode(arrayBuffer.slice(0, Math.min(arrayBuffer.byteLength, 500000)));
+                        const matches = xmlString.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
+                        if (matches) {
+                            text = matches.map(m => m.replace(/<[^>]+>/g, '')).join(' ');
+                            addDebugLog(`备用解析: ${text.length} 字符`);
+                        }
+                    }
+                    return text;
+                } catch (e) {
+                    addDebugLog(`DOCX 解析异常: ${e.message}`, 'error');
+                    throw e;
+                }
+            }
+            
+            async parseExcel(file) {
+                addDebugLog(`解析 Excel: ${file.name}`);
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = XLSX.read(arrayBuffer, { cellText: false });
+                let text = '';
+                for (const sheetName of workbook.SheetNames.slice(0, 5)) {
+                    const sheet = workbook.Sheets[sheetName];
+                    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    text += `\n【工作表: ${sheetName}】\n`;
+                    for (const row of data.slice(0, 100)) text += row.join(' ') + '\n';
+                }
+                addDebugLog(`Excel 解析完成: ${text.length} 字符`);
+                return text;
+            }
+            
+            async parseImage(file) {
+                addDebugLog(`OCR 解析图片: ${file.name}`);
+                const url = URL.createObjectURL(file);
+                try {
+                    const { data: { text } } = await Tesseract.recognize(url, 'chi_sim+eng');
+                    addDebugLog(`OCR 完成: ${text.length} 字符`);
+                    return text;
+                } finally {
+                    URL.revokeObjectURL(url);
+                }
+            }
         }
         
         // ==================== 全局变量 ====================
@@ -1557,28 +1454,16 @@
             try {
                 showToast('正在生成完整备份...');
                 const settings = {
-                    apiUrl: API_URL,
-                    apiType: API_TYPE,
-                    modelName: MODEL_NAME,
-                    modelParams: MODEL_PARAMS,
-                    maxContext: MAX_CONTEXT_TOKENS,
-                    theme: document.body.classList.contains('dark') ? 'dark' : 'light',
+                    apiUrl: API_URL, apiType: API_TYPE, modelName: MODEL_NAME, modelParams: MODEL_PARAMS,
+                    maxContext: MAX_CONTEXT_TOKENS, theme: document.body.classList.contains('dark') ? 'dark' : 'light',
                     voiceRate: document.getElementById('voiceRate')?.value || '1.0',
-                    voicePitch: document.getElementById('voicePitch')?.value || '1.0',
-                    autoSpeak: autoSpeakEnabled
+                    voicePitch: document.getElementById('voicePitch')?.value || '1.0', autoSpeak: autoSpeakEnabled
                 };
                 const templates = promptTemplates;
                 const kbExport = kbManager ? await kbManager.exportKBData() : { version: '3.0', files: [] };
                 const chatsExport = chats;
-                const backupData = {
-                    version: '2.0',
-                    timestamp: Date.now(),
-                    exportedAt: new Date().toISOString(),
-                    chats: chatsExport,
-                    templates: templates,
-                    settings: settings,
-                    knowledgeBase: kbExport
-                };
+                const backupData = { version: '2.0', timestamp: Date.now(), exportedAt: new Date().toISOString(),
+                    chats: chatsExport, templates: templates, settings: settings, knowledgeBase: kbExport };
                 const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -1587,10 +1472,7 @@
                 a.click();
                 URL.revokeObjectURL(url);
                 showToast('✅ 完整备份已导出');
-            } catch (e) {
-                console.error(e);
-                showToast('备份失败: ' + e.message);
-            }
+            } catch (e) { console.error(e); showToast('备份失败: ' + e.message); }
         }
         
         async function restoreFromGlobalBackup(file) {
@@ -1600,7 +1482,6 @@
             reader.onload = async (ev) => {
                 try {
                     const data = JSON.parse(ev.target.result);
-                    // 恢复聊天记录
                     if (data.chats && Array.isArray(data.chats)) {
                         for (let c of chats) await deleteChatFromDB(c.id);
                         for (let c of data.chats) await saveChat(c);
@@ -1610,7 +1491,6 @@
                         renderHistoryList();
                         updateChatCount();
                     }
-                    // 恢复模板
                     if (data.templates && Array.isArray(data.templates)) {
                         promptTemplates = data.templates;
                         localStorage.setItem('enhanced_templates_v2', JSON.stringify(promptTemplates));
@@ -1618,7 +1498,6 @@
                         updateQuickTemplateBar();
                         updateTemplateStats();
                     }
-                    // 恢复设置
                     if (data.settings) {
                         API_URL = data.settings.apiUrl || API_URL;
                         API_TYPE = data.settings.apiType || API_TYPE;
@@ -1627,7 +1506,6 @@
                         MAX_CONTEXT_TOKENS = data.settings.maxContext || 8192;
                         if (data.settings.theme === 'dark') document.body.classList.add('dark');
                         else document.body.classList.remove('dark');
-                        localStorage.setItem('qwen_settings_enhanced_v5', JSON.stringify(data.settings));
                         document.getElementById('contextSize').innerText = MAX_CONTEXT_TOKENS;
                         if (data.settings.voiceRate) document.getElementById('voiceRate').value = data.settings.voiceRate;
                         if (data.settings.voicePitch) document.getElementById('voicePitch').value = data.settings.voicePitch;
@@ -1636,7 +1514,6 @@
                         if (autoBtn) autoBtn.textContent = autoSpeakEnabled ? '🤖 自动播报: 开' : '🤖 自动播报: 关';
                         localStorage.setItem('auto_speak', autoSpeakEnabled);
                     }
-                    // 恢复知识库
                     if (data.knowledgeBase && kbManager) {
                         await kbManager.importKBData(data.knowledgeBase);
                         await renderFileList();
@@ -1644,10 +1521,7 @@
                     }
                     showToast('✅ 全局恢复完成！');
                     closeGlobalBackupModal();
-                } catch (e) {
-                    console.error(e);
-                    showToast('恢复失败: ' + e.message);
-                }
+                } catch (e) { console.error(e); showToast('恢复失败: ' + e.message); }
             };
             reader.readAsText(file);
         }
@@ -1662,142 +1536,73 @@
             }
         }
         
-        function openGlobalBackupModal() {
-            document.getElementById('globalBackupModal').style.display = 'flex';
-            updateBackupStatsInfo();
-        }
-        
-        function closeGlobalBackupModal() {
-            document.getElementById('globalBackupModal').style.display = 'none';
-        }
+        function openGlobalBackupModal() { document.getElementById('globalBackupModal').style.display = 'flex'; updateBackupStatsInfo(); }
+        function closeGlobalBackupModal() { document.getElementById('globalBackupModal').style.display = 'none'; }
         
         // ==================== 增强的模板管理器 ====================
         const ENHANCED_DEFAULT_TEMPLATES = [
             { id: '1', name: '🔍 代码审查专家', content: '请作为资深代码审查专家，仔细审查以下代码，指出潜在问题、性能优化建议和最佳实践改进：\n\n```\n{{input}}\n```', category: '编程', usageCount: 0, isFavorite: false, createdAt: Date.now() },
             { id: '2', name: '🐛 Bug 分析助手', content: '请分析以下代码中的Bug，解释问题原因并提供修复方案：\n\n```\n{{input}}\n```', category: '编程', usageCount: 0, isFavorite: false, createdAt: Date.now() },
             { id: '3', name: '📝 代码注释生成', content: '请为以下代码生成详细的中文注释，解释每一部分的功能：\n\n```\n{{input}}\n```', category: '编程', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '4', name: '⚡ 性能优化建议', content: '请分析以下代码的性能瓶颈，并提供优化建议：\n\n```\n{{input}}\n```', category: '编程', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '5', name: '✍️ 文章润色', content: '请帮我润色以下文章，改善语言表达，使其更加流畅优美：\n\n{{input}}', category: '写作', usageCount: 0, isFavorite: true, createdAt: Date.now() },
-            { id: '6', name: '📧 专业邮件撰写', content: '请帮我撰写一封专业的邮件，主题和内容如下：\n\n{{input}}', category: '写作', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '7', name: '📄 工作总结报告', content: '请根据以下工作内容，帮我撰写一份专业的工作总结报告：\n\n{{input}}', category: '写作', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '8', name: '🎯 简历优化', content: '请帮我优化以下简历内容，突出亮点和成就：\n\n{{input}}', category: '写作', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '9', name: '🌐 中译英', content: '请将以下内容翻译成地道、专业的英文：\n\n{{input}}', category: '翻译', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '10', name: '🌏 英译中', content: '请将以下英文内容翻译成流畅的中文：\n\n{{input}}', category: '翻译', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '11', name: '🇯🇵 日文翻译', content: '请将以下内容翻译成日文：\n\n{{input}}', category: '翻译', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '12', name: '📝 技术文档翻译', content: '请将以下技术文档翻译成中文，保持专业术语的准确性：\n\n{{input}}', category: '翻译', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '13', name: '📊 SWOT 分析', content: '请对以下内容进行SWOT分析（优势、劣势、机会、威胁）：\n\n{{input}}', category: '分析', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '14', name: '📈 数据分析解读', content: '请分析以下数据，提供关键洞察和建议：\n\n{{input}}', category: '分析', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '15', name: '🎯 竞品分析', content: '请对以下竞品信息进行详细分析，包括优劣势对比和市场定位：\n\n{{input}}', category: '分析', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '16', name: '📚 知识点讲解', content: '请详细讲解以下知识点，用通俗易懂的方式：\n\n{{input}}', category: '教育', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '17', name: '📝 习题解答', content: '请解答以下问题，并给出详细的解题思路：\n\n{{input}}', category: '教育', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '18', name: '🎓 学习计划制定', content: '请根据以下学习目标，帮我制定一个详细的学习计划：\n\n{{input}}', category: '教育', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '19', name: '💡 头脑风暴', content: '请基于以下主题进行头脑风暴，提供10个创新想法：\n\n{{input}}', category: '创意', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '20', name: '📖 故事创作', content: '请根据以下设定创作一个有趣的小故事：\n\n{{input}}', category: '创意', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '21', name: '🎬 短视频脚本', content: '请为以下主题创作一个15-30秒的短视频脚本：\n\n{{input}}', category: '创意', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '22', name: '💬 通用问答', content: '{{input}}', category: '通用', usageCount: 0, isFavorite: true, createdAt: Date.now() },
-            { id: '23', name: '📝 总结归纳', content: '请总结以下内容的核心要点：\n\n{{input}}', category: '通用', usageCount: 0, isFavorite: false, createdAt: Date.now() },
-            { id: '24', name: '🔍 深度分析', content: '请对以下内容进行深度分析，提供专业见解：\n\n{{input}}', category: '通用', usageCount: 0, isFavorite: false, createdAt: Date.now() }
+            { id: '4', name: '✍️ 文章润色', content: '请帮我润色以下文章，改善语言表达，使其更加流畅优美：\n\n{{input}}', category: '写作', usageCount: 0, isFavorite: true, createdAt: Date.now() },
+            { id: '5', name: '🌐 中译英', content: '请将以下内容翻译成地道、专业的英文：\n\n{{input}}', category: '翻译', usageCount: 0, isFavorite: false, createdAt: Date.now() },
+            { id: '6', name: '📊 SWOT 分析', content: '请对以下内容进行SWOT分析（优势、劣势、机会、威胁）：\n\n{{input}}', category: '分析', usageCount: 0, isFavorite: false, createdAt: Date.now() },
+            { id: '7', name: '📚 知识点讲解', content: '请详细讲解以下知识点，用通俗易懂的方式：\n\n{{input}}', category: '教育', usageCount: 0, isFavorite: false, createdAt: Date.now() },
+            { id: '8', name: '💡 头脑风暴', content: '请基于以下主题进行头脑风暴，提供10个创新想法：\n\n{{input}}', category: '创意', usageCount: 0, isFavorite: false, createdAt: Date.now() },
+            { id: '9', name: '💬 通用问答', content: '{{input}}', category: '通用', usageCount: 0, isFavorite: true, createdAt: Date.now() },
+            { id: '10', name: '📝 总结归纳', content: '请总结以下内容的核心要点：\n\n{{input}}', category: '通用', usageCount: 0, isFavorite: false, createdAt: Date.now() }
         ];
         
         function loadEnhancedTemplates() {
             let saved = localStorage.getItem('enhanced_templates_v2');
-            if (saved) {
-                try {
-                    promptTemplates = JSON.parse(saved);
-                } catch(e) {
-                    promptTemplates = [...ENHANCED_DEFAULT_TEMPLATES];
-                }
-            }
-            if (!promptTemplates || !promptTemplates.length) {
-                promptTemplates = [...ENHANCED_DEFAULT_TEMPLATES];
-            }
+            if (saved) { try { promptTemplates = JSON.parse(saved); } catch(e) { promptTemplates = [...ENHANCED_DEFAULT_TEMPLATES]; } }
+            if (!promptTemplates || !promptTemplates.length) { promptTemplates = [...ENHANCED_DEFAULT_TEMPLATES]; }
             renderEnhancedTemplateList();
             updateQuickTemplateBar();
             updateTemplateStats();
         }
         
         function renderEnhancedTemplateList() {
-            let filtered = currentCategory === '全部' 
-                ? promptTemplates 
-                : promptTemplates.filter(t => t.category === currentCategory);
-            
+            let filtered = currentCategory === '全部' ? promptTemplates : promptTemplates.filter(t => t.category === currentCategory);
             filtered.sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0));
-            
             const container = document.getElementById('templateList');
             if (!container) return;
-            
-            if (filtered.length === 0) {
-                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-secondary);">暂无模板，点击下方按钮创建</div>';
-                return;
-            }
-            
+            if (filtered.length === 0) { container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px;">暂无模板</div>'; return; }
             container.innerHTML = filtered.map(t => `
                 <div class="template-card" onclick="applyEnhancedTemplate('${t.id}')">
-                    <div class="favorite-template" onclick="event.stopPropagation(); toggleFavorite('${t.id}')">
-                        ${t.isFavorite ? '⭐' : '☆'}
-                    </div>
+                    <div class="favorite-template" onclick="event.stopPropagation(); toggleFavorite('${t.id}')">${t.isFavorite ? '⭐' : '☆'}</div>
                     <div class="template-card-header">
-                        <div class="template-card-title">
-                            ${escapeHtml(t.name)}
-                            ${t.content.includes('{{input}}') ? '<span class="variable-badge">📝 需要输入</span>' : ''}
-                        </div>
+                        <div class="template-card-title">${escapeHtml(t.name)}${t.content.includes('{{input}}') ? '<span class="variable-badge">📝 需要输入</span>' : ''}</div>
                         <div class="template-card-category">${t.category || '通用'}</div>
                     </div>
-                    <div class="template-card-preview">
-                        ${escapeHtml(t.content.substring(0, 80))}${t.content.length > 80 ? '...' : ''}
-                    </div>
+                    <div class="template-card-preview">${escapeHtml(t.content.substring(0, 80))}${t.content.length > 80 ? '...' : ''}</div>
                     <div class="template-card-actions">
-                        <span style="font-size: 11px; color: var(--text-secondary);">📈 使用 ${t.usageCount || 0} 次</span>
+                        <span style="font-size: 11px;">📈 使用 ${t.usageCount || 0} 次</span>
                         <button class="template-card-btn" onclick="event.stopPropagation(); editEnhancedTemplate('${t.id}')">✏️ 编辑</button>
                         <button class="template-card-btn" onclick="event.stopPropagation(); deleteEnhancedTemplate('${t.id}')">🗑️ 删除</button>
                     </div>
                 </div>
             `).join('');
-            
             const categories = ['全部', ...new Set(promptTemplates.map(t => t.category || '通用'))];
             const categoryContainer = document.getElementById('templateCategories');
             if (categoryContainer) {
-                categoryContainer.innerHTML = categories.map(cat => `
-                    <button class="template-category-btn ${currentCategory === cat ? 'active' : ''}" 
-                            onclick="switchCategory('${cat}')">
-                        ${cat === '全部' ? '📋 全部' : cat}
-                    </button>
-                `).join('');
+                categoryContainer.innerHTML = categories.map(cat => `<button class="template-category-btn ${currentCategory === cat ? 'active' : ''}" onclick="switchCategory('${cat}')">${cat === '全部' ? '📋 全部' : cat}</button>`).join('');
             }
         }
         
-        function switchCategory(category) {
-            currentCategory = category;
-            renderEnhancedTemplateList();
-        }
-        
+        function switchCategory(category) { currentCategory = category; renderEnhancedTemplateList(); }
         function toggleFavorite(templateId) {
             const template = promptTemplates.find(t => t.id === templateId);
-            if (template) {
-                template.isFavorite = !template.isFavorite;
-                saveEnhancedTemplates();
-                renderEnhancedTemplateList();
-                updateQuickTemplateBar();
-                updateTemplateStats();
-                showToast(template.isFavorite ? '已添加到收藏' : '已取消收藏');
-            }
+            if (template) { template.isFavorite = !template.isFavorite; saveEnhancedTemplates(); renderEnhancedTemplateList(); updateQuickTemplateBar(); updateTemplateStats(); showToast(template.isFavorite ? '已添加到收藏' : '已取消收藏'); }
         }
-        
         function updateQuickTemplateBar() {
             const bar = document.getElementById('quickTemplateBar');
             if (!bar) return;
-            
             const favoriteTemplates = promptTemplates.filter(t => t.isFavorite).slice(0, 6);
-            
-            if (favoriteTemplates.length === 0) {
-                bar.style.display = 'none';
-                return;
-            }
-            
+            if (favoriteTemplates.length === 0) { bar.style.display = 'none'; return; }
             bar.style.display = 'flex';
             const existingItems = bar.querySelectorAll('.quick-template-item:not(:first-child)');
             existingItems.forEach(item => item.remove());
-            
             favoriteTemplates.forEach(template => {
                 const item = document.createElement('div');
                 item.className = 'quick-template-item';
@@ -1806,53 +1611,37 @@
                 bar.appendChild(item);
             });
         }
-        
         function updateTemplateStats() {
             const totalEl = document.getElementById('totalTemplates');
             const favoriteEl = document.getElementById('favoriteCount');
             const usageEl = document.getElementById('totalUsage');
-            
             if (totalEl) totalEl.textContent = promptTemplates.length;
             if (favoriteEl) favoriteEl.textContent = promptTemplates.filter(t => t.isFavorite).length;
             if (usageEl) usageEl.textContent = promptTemplates.reduce((sum, t) => sum + (t.usageCount || 0), 0);
         }
-        
         function applyEnhancedTemplate(templateId) {
             const template = promptTemplates.find(t => t.id === templateId);
             if (!template) return;
-            
             let content = template.content;
-            
             template.usageCount = (template.usageCount || 0) + 1;
             saveEnhancedTemplates();
             updateTemplateStats();
-            
             if (content.includes('{{input}}')) {
                 const inputValue = prompt(`请输入内容 (模板: ${template.name})：`, '');
                 if (inputValue === null) return;
                 content = content.replace(/\{\{input\}\}/g, inputValue);
             }
-            
             const inputElement = document.getElementById('userInput');
             if (inputElement) {
                 const currentValue = inputElement.value.trim();
                 inputElement.value = currentValue ? currentValue + '\n\n' + content : content;
                 autoResize(inputElement);
                 updateSendButtonState();
-                
-                const templateBtn = document.querySelector('.template-btn');
-                if (templateBtn) {
-                    templateBtn.classList.add('template-applied');
-                    setTimeout(() => templateBtn.classList.remove('template-applied'), 300);
-                }
-                
                 showToast(`✅ 已应用模板: ${template.name}`);
                 closeTemplatePanel();
-                
                 inputElement.focus();
             }
         }
-        
         function editEnhancedTemplate(templateId) {
             const template = promptTemplates.find(t => t.id === templateId);
             if (template) {
@@ -1864,7 +1653,6 @@
                 document.getElementById('dialogTitle').textContent = '✏️ 编辑模板';
             }
         }
-        
         function deleteEnhancedTemplate(templateId) {
             if (!confirm('确定要删除这个模板吗？')) return;
             promptTemplates = promptTemplates.filter(t => t.id !== templateId);
@@ -1874,65 +1662,34 @@
             updateTemplateStats();
             showToast('模板已删除');
         }
-        
         function saveEnhancedTemplate() {
             const name = document.getElementById('templateName').value.trim();
             const category = document.getElementById('templateCategory').value;
             const content = document.getElementById('templateContent').value.trim();
-            
-            if (!name || !content) {
-                showToast('请填写模板名称和内容');
-                return;
-            }
-            
+            if (!name || !content) { showToast('请填写模板名称和内容'); return; }
             if (window._editId) {
                 const index = promptTemplates.findIndex(t => t.id === window._editId);
-                if (index !== -1) {
-                    promptTemplates[index] = {
-                        ...promptTemplates[index],
-                        name,
-                        category,
-                        content,
-                        updatedAt: Date.now()
-                    };
-                    showToast('模板已更新');
-                }
+                if (index !== -1) { promptTemplates[index] = { ...promptTemplates[index], name, category, content, updatedAt: Date.now() }; showToast('模板已更新'); }
             } else {
-                promptTemplates.push({
-                    id: Date.now().toString(),
-                    name,
-                    category,
-                    content,
-                    usageCount: 0,
-                    isFavorite: false,
-                    createdAt: Date.now()
-                });
+                promptTemplates.push({ id: Date.now().toString(), name, category, content, usageCount: 0, isFavorite: false, createdAt: Date.now() });
                 showToast('模板已添加');
             }
-            
             saveEnhancedTemplates();
             renderEnhancedTemplateList();
             updateQuickTemplateBar();
             updateTemplateStats();
             closeTemplateDialog();
         }
-        
-        function saveEnhancedTemplates() {
-            localStorage.setItem('enhanced_templates_v2', JSON.stringify(promptTemplates));
-        }
-        
+        function saveEnhancedTemplates() { localStorage.setItem('enhanced_templates_v2', JSON.stringify(promptTemplates)); }
         function exportTemplates() {
             const data = JSON.stringify(promptTemplates, null, 2);
             const blob = new Blob([data], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
+            a.href = URL.createObjectURL(blob);
             a.download = `templates_${Date.now()}.json`;
             a.click();
-            URL.revokeObjectURL(url);
             showToast('模板已导出');
         }
-        
         function importTemplates() {
             const input = document.createElement('input');
             input.type = 'file';
@@ -1940,7 +1697,6 @@
             input.onchange = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     try {
@@ -1954,18 +1710,13 @@
                                 updateTemplateStats();
                                 showToast('模板导入成功');
                             }
-                        } else {
-                            showToast('无效的模板文件');
-                        }
-                    } catch(err) {
-                        showToast('文件解析失败');
-                    }
+                        } else { showToast('无效的模板文件'); }
+                    } catch(err) { showToast('文件解析失败'); }
                 };
                 reader.readAsText(file);
             };
             input.click();
         }
-        
         function resetToDefaultTemplates() {
             if (confirm('重置所有模板到默认状态？当前模板将被覆盖。')) {
                 promptTemplates = JSON.parse(JSON.stringify(ENHANCED_DEFAULT_TEMPLATES));
@@ -1976,16 +1727,8 @@
                 showToast('已重置为默认模板');
             }
         }
-        
-        window.openTemplatePanel = function() {
-            loadEnhancedTemplates();
-            document.getElementById('templateModal').style.display = 'flex';
-        };
-        
-        window.closeTemplatePanel = function() {
-            document.getElementById('templateModal').style.display = 'none';
-        };
-        
+        window.openTemplatePanel = function() { loadEnhancedTemplates(); document.getElementById('templateModal').style.display = 'flex'; };
+        window.closeTemplatePanel = function() { document.getElementById('templateModal').style.display = 'none'; };
         window.showAddTemplateDialog = function() {
             document.getElementById('templateName').value = '';
             document.getElementById('templateCategory').value = '通用';
@@ -1994,12 +1737,7 @@
             window._editId = null;
             document.getElementById('dialogTitle').textContent = '📝 创建新模板';
         };
-        
-        window.closeTemplateDialog = function() {
-            document.getElementById('templateDialog').style.display = 'none';
-            window._editId = null;
-        };
-        
+        window.closeTemplateDialog = function() { document.getElementById('templateDialog').style.display = 'none'; window._editId = null; };
         window.saveTemplate = saveEnhancedTemplate;
         
         // ==================== 聊天功能 ====================
@@ -2018,16 +1756,19 @@
         // ==================== 知识库集成 ====================
         async function buildRAGContext(query) {
             if (!kbEnabled || !kbManager || !kbManager.isInitialized) return null;
-            let topK = parseInt(document.getElementById('ragTopK')?.value || 5);
+            let topK = parseInt(document.getElementById('ragTopK')?.value || 8);
+            let threshold = parseFloat(document.getElementById('ragThreshold')?.value || 0.05);
             let results = await kbManager.search(query, { topK });
             if (!results.length) return null;
             let ctx = '📚 【知识库检索结果】\n';
             for (let i = 0; i < results.length; i++) {
                 let r = results[i];
-                ctx += `\n[${i+1}] 来自《${r.fileName}》 (相关度: ${(r.score*100).toFixed(1)}%):\n${r.text.substring(0, 400)}${r.text.length > 400 ? '...' : ''}\n`;
+                if (r.score >= threshold) {
+                    ctx += `\n[${i+1}] 来自《${r.fileName}》 (相关度: ${(r.score*100).toFixed(1)}%):\n${r.text.substring(0, 500)}${r.text.length > 500 ? '...' : ''}\n`;
+                }
             }
-            ctx += `\n请基于以上检索结果回答用户问题。`;
-            return { context: ctx, results: results };
+            ctx += `\n请基于以上检索结果回答用户问题。如果检索结果与问题不相关，请忽略。`;
+            return { context: ctx, results: results.filter(r => r.score >= threshold) };
         }
         
         // ==================== 消息发送 ====================
@@ -2161,10 +1902,14 @@
             let finalPrompt = aiPromptText;
             let rag = null;
             if (kbEnabled && kbManager && kbManager.isInitialized) {
+                addDebugLog(`执行 RAG 检索: "${aiPromptText.substring(0, 100)}..."`);
                 rag = await buildRAGContext(aiPromptText);
-                if (rag) {
+                if (rag && rag.results.length > 0) {
                     finalPrompt = `用户问题：${aiPromptText}\n\n${rag.context}\n\n请基于以上知识库内容回答。`;
                     await appendMessageDOM('kb', `📚 检索到 ${rag.results.length} 条相关内容`);
+                    addDebugLog(`RAG 检索到 ${rag.results.length} 条结果`, 'success');
+                } else {
+                    addDebugLog(`RAG 未检索到相关内容`, 'error');
                 }
             }
             
@@ -2370,7 +2115,6 @@
         
         window.addEventListener('beforeunload', () => { if (window.speechSynthesis) window.speechSynthesis.cancel(); });
         
-        // 统计更新
         window.addEventListener('kbStatsUpdated', (e) => {
             const stats = e.detail;
             const statsEl = document.getElementById('ragStats');
@@ -2388,13 +2132,49 @@
         let backupInterval = null;
         function startAutoBackup() { if (backupInterval) clearInterval(backupInterval); backupInterval = setInterval(() => { const backup = { chats: chats, templates: promptTemplates, timestamp: Date.now() }; localStorage.setItem('auto_backup', JSON.stringify(backup)); }, 5 * 60 * 1000); }
         
+        // 调试工具
+        window.debugKBIndex = async function() {
+            if (!kbManager || !kbManager.engine) { addDebugLog('知识库未初始化', 'error'); return; }
+            const stats = kbManager.engine.invertedIndex.getStats();
+            addDebugLog('=== 知识库索引状态 ===', 'success');
+            addDebugLog(`文件数: ${stats.totalFiles}`);
+            addDebugLog(`分块数: ${stats.totalChunks}`);
+            addDebugLog(`词项数: ${stats.vocabularySize}`);
+            return stats;
+        };
+        
+        window.testKBSearch = async function(query) {
+            if (!kbManager || !kbManager.engine) { addDebugLog('知识库未初始化', 'error'); return; }
+            addDebugLog(`========== 测试搜索: "${query}" ==========`, 'success');
+            const results = await kbManager.search(query, { topK: 10 });
+            if (results.length === 0) { addDebugLog('❌ 未找到相关结果', 'error'); }
+            else { addDebugLog(`✅ 找到 ${results.length} 条结果`); results.forEach((r, i) => { addDebugLog(`[${i+1}] 文件: ${r.fileName} (${(r.score * 100).toFixed(2)}%)`); addDebugLog(`    内容预览: ${r.text.substring(0, 150)}...`); }); }
+            return results;
+        };
+        
+        window.verifyUploadedFile = async function(fileName) {
+            if (!kbManager) { addDebugLog('知识库未初始化', 'error'); return; }
+            const files = await kbManager.getFileList();
+            const targetFile = files.find(f => f.name === fileName);
+            if (!targetFile) { addDebugLog(`❌ 文件 "${fileName}" 未找到`, 'error'); addDebugLog(`现有文件: ${files.map(f => f.name).join(', ')}`); return false; }
+            addDebugLog(`✅ 找到文件: ${targetFile.name}`, 'success');
+            addDebugLog(`  大小: ${(targetFile.size / 1024).toFixed(1)}KB`);
+            addDebugLog(`  分块数: ${targetFile.chunkCount || 0}`);
+            const chunks = await kbManager.engine.store.getFileChunksInfo(targetFile.id);
+            addDebugLog(`  实际分块: ${chunks.length}`);
+            if (chunks.length > 0) { addDebugLog(`  内容预览: ${chunks[0].text.substring(0, 300)}...`); }
+            return true;
+        };
+        
         window.onload = async () => {
+            addDebugLog('应用启动中...', 'info');
             if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
             loadSettings();
             await loadAllChats();
             
             kbManager = new KnowledgeBaseManager();
             await kbManager.init();
+            addDebugLog('知识库管理器已初始化', 'success');
             
             loadEnhancedTemplates();
             
@@ -2413,11 +2193,10 @@
             restoreKbPanelState();
             restoreDesktopSidebarState();
             
-            // 启动代码高亮监听
             observeCodeHighlighting();
-            
-            // 初始化欢迎消息中的代码高亮
             applyCodeHighlighting(document.getElementById('welcomeMsg'));
+            
+            addDebugLog('应用启动完成，点击「🔧调试」查看知识库状态', 'success');
         };
         
         // 暴露全局函数
@@ -2442,20 +2221,6 @@
         window.editEnhancedTemplate = editEnhancedTemplate; window.deleteEnhancedTemplate = deleteEnhancedTemplate;
         window.applyEnhancedTemplate = applyEnhancedTemplate; window.exportTemplates = exportTemplates;
         window.importTemplates = importTemplates; window.resetToDefaultTemplates = resetToDefaultTemplates;
-        
-        // 覆盖 renderMarkdown 函数
-        window.renderMarkdown = async function(t) {
-            if (!t) return '';
-            if (typeof marked !== 'undefined') {
-                let h = await marked.parse(t);
-                if (typeof DOMPurify !== 'undefined') h = DOMPurify.sanitize(h);
-                const temp = document.createElement('div');
-                temp.innerHTML = h;
-                applyCodeHighlighting(temp);
-                return temp.innerHTML;
-            }
-            return escapeHtml(t).replace(/\n/g, '<br>');
-        };
     </script>
 </body>
 </html>
