@@ -565,6 +565,24 @@
             display: none;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
+/* 移动端输入框加宽 */
+@media (max-width: 768px) {
+    .input-area {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }
+    
+    .input-box {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
+    
+    textarea#userInput {
+        width: 100% !important;
+        min-width: 0 !important;
+        flex: 1 !important;
+    }
+}
     </style>
 </head>
 <body>
