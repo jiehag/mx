@@ -13649,32 +13649,142 @@ if (originalHandleQuickCommand) {
 
 console.log('🧬 自主进化模块已加载，等待现有系统就绪后自动启动...');
 </script>
-<!-- ==================== 多模态模块完整修复版 ==================== -->
+<!-- 优化多模态UI - 点击按钮仅切换开关 -->
 <script>
 // ==================== 多模态配置 ====================
 let multimodalConfig = {
     enabled: false,
     backend: 'ollama',
     model: 'llava',
-    apiKey: ''
+    apiUrl: '',
+    apiKey: '',
+    customEndpoint: ''
 };
 
-// 初始化配置
+// 后端配置详情
+const BACKEND_CONFIGS = {
+    ollama: {
+        name: 'Ollama',
+        icon: '🦙',
+        defaultUrl: 'http://localhost:11434',
+        defaultModel: 'llava',
+        models: ['llava', 'bakllava', 'moondream', 'cogvlm', 'llava-phi', 'llava-llama3'],
+        apiType: 'ollama',
+        requiresKey: false,
+        instruction: '安装: ollama pull llava，启动: ollama serve',
+        visionEndpoint: '/api/generate',
+        imageFormat: 'raw_base64'
+    },
+    lmstudio: {
+        name: 'LM Studio',
+        icon: '🎯',
+        defaultUrl: 'http://localhost:1234/v1',
+        defaultModel: 'local-model',
+        models: ['local-model', 'llava-v1.5-7b', 'bakllava-7b', 'cogvlm-gguf'],
+        apiType: 'openai',
+        requiresKey: false,
+        instruction: '加载GGUF视觉模型 → 启动Local Inference Server → 端口1234',
+        visionEndpoint: '/chat/completions',
+        imageFormat: 'openai_url'
+    },
+    llamacpp: {
+        name: 'llama.cpp',
+        icon: '🔧',
+        defaultUrl: 'http://localhost:8080',
+        defaultModel: 'llava',
+        models: ['llava', 'bakllava', 'cogvlm', 'moondream'],
+        apiType: 'llamacpp',
+        requiresKey: false,
+        instruction: './server -m llava-v1.5-7b.gguf --mmproj mmproj-llava-v1.5-7b.gguf',
+        visionEndpoint: '/completion',
+        imageFormat: 'raw_base64'
+    },
+    zhipu: {
+        name: '智谱 GLM-4V',
+        icon: '🚀',
+        defaultUrl: 'https://open.bigmodel.cn/api/paas/v4',
+        defaultModel: 'glm-4v-plus',
+        models: ['glm-4v-plus', 'glm-4v-flash', 'glm-4v'],
+        apiType: 'openai',
+        requiresKey: true,
+        keyFormat: 'xxx.yyy (在 open.bigmodel.cn 获取)',
+        instruction: '智谱GLM-4V支持图像理解，需申请API Key',
+        visionEndpoint: '/chat/completions',
+        imageFormat: 'openai_url'
+    },
+    siliconflow: {
+        name: 'SiliconFlow',
+        icon: '🧠',
+        defaultUrl: 'https://api.siliconflow.cn/v1',
+        defaultModel: 'deepseek-ai/deepseek-vl2',
+        models: [
+            'deepseek-ai/deepseek-vl2',
+            'Qwen/Qwen2-VL-72B-Instruct',
+            'Qwen/Qwen2-VL-7B-Instruct',
+            'llava-hf/llava-1.5-7b-hf'
+        ],
+        apiType: 'openai',
+        requiresKey: true,
+        keyFormat: 'sk-xxx (在 cloud.siliconflow.cn 获取)',
+        instruction: 'SiliconFlow支持多种视觉模型，新用户有免费额度',
+        visionEndpoint: '/chat/completions',
+        imageFormat: 'openai_url'
+    },
+    deepseek: {
+        name: 'DeepSeek VL',
+        icon: '🔥',
+        defaultUrl: 'https://api.deepseek.com/v1',
+        defaultModel: 'deepseek-chat',
+        models: ['deepseek-chat', 'deepseek-vl2', 'deepseek-vl2-turbo'],
+        apiType: 'openai',
+        requiresKey: true,
+        keyFormat: 'sk-xxx (在 platform.deepseek.com 获取)',
+        instruction: 'DeepSeek VL支持图片理解，需在对话中包含图片URL',
+        visionEndpoint: '/chat/completions',
+        imageFormat: 'openai_url'
+    },
+    qwen: {
+        name: '通义千问 VL',
+        icon: '📖',
+        defaultUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        defaultModel: 'qwen-vl-plus',
+        models: ['qwen-vl-plus', 'qwen-vl-max', 'qwen2-vl-72b-instruct', 'qwen2-vl-7b-instruct'],
+        apiType: 'openai',
+        requiresKey: true,
+        keyFormat: 'sk-xxx (在 dashscope.console.aliyun.com 获取)',
+        instruction: '通义千问VL支持图片理解，DashScope API',
+        visionEndpoint: '/chat/completions',
+        imageFormat: 'openai_url'
+    },
+    openai: {
+        name: 'OpenAI GPT-4V',
+        icon: '🤖',
+        defaultUrl: 'https://api.openai.com/v1',
+        defaultModel: 'gpt-4o-mini',
+        models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-4-vision-preview'],
+        apiType: 'openai',
+        requiresKey: true,
+        keyFormat: 'sk-proj-xxx (在 platform.openai.com 获取)',
+        instruction: 'GPT-4V支持图像理解，API Key需有额度',
+        visionEndpoint: '/chat/completions',
+        imageFormat: 'openai_url'
+    }
+};
+
 function initMultimodalConfig() {
-    // 默认关闭（只有当 localStorage 中明确为 'true' 时才开启）
     multimodalConfig.enabled = localStorage.getItem('multimodal_enabled') === 'true';
     multimodalConfig.backend = localStorage.getItem('multimodal_backend') || 'ollama';
     multimodalConfig.model = localStorage.getItem('multimodal_model') || 'llava';
+    multimodalConfig.apiUrl = localStorage.getItem('multimodal_api_url') || '';
     multimodalConfig.apiKey = localStorage.getItem('multimodal_apikey') || '';
+    multimodalConfig.customEndpoint = localStorage.getItem('multimodal_custom_endpoint') || '';
     
-    // 如果没有设置过，默认为关闭
     if (localStorage.getItem('multimodal_enabled') === null) {
         localStorage.setItem('multimodal_enabled', 'false');
         multimodalConfig.enabled = false;
     }
 }
 
-// 调用初始化
 initMultimodalConfig();
 
 // ==================== 图片处理 ====================
@@ -13725,15 +13835,51 @@ class ImageProcessor {
             img.src = url;
         });
     }
+    
+    static async fileToDataUrl(file, maxSize = 800) {
+        const compressed = await this.compress(file, maxSize);
+        return await this.toFullBase64(compressed);
+    }
+    
+    static async fileToRawBase64(file, maxSize = 800) {
+        const compressed = await this.compress(file, maxSize);
+        return await this.toRawBase64(compressed);
+    }
 }
 
-// ==================== Ollama API ====================
-class OllamaAPI {
+// ==================== 多模态API统一接口 ====================
+class VisionAPI {
     constructor() {
         this.currentController = null;
     }
     
-    async analyzeImages(prompt, images, onToken, onError, onComplete) {
+    async analyze(prompt, images, onToken, onError, onComplete) {
+        const backend = multimodalConfig.backend;
+        
+        switch(backend) {
+            case 'ollama':
+                return await this.analyzeOllama(prompt, images, onToken, onError, onComplete);
+            case 'lmstudio':
+                return await this.analyzeLMStudio(prompt, images, onToken, onError, onComplete);
+            case 'llamacpp':
+                return await this.analyzeLlamaCpp(prompt, images, onToken, onError, onComplete);
+            case 'zhipu':
+                return await this.analyzeZhipu(prompt, images, onToken, onError, onComplete);
+            case 'siliconflow':
+                return await this.analyzeSiliconFlow(prompt, images, onToken, onError, onComplete);
+            case 'deepseek':
+                return await this.analyzeDeepSeek(prompt, images, onToken, onError, onComplete);
+            case 'qwen':
+                return await this.analyzeQwen(prompt, images, onToken, onError, onComplete);
+            case 'openai':
+                return await this.analyzeOpenAI(prompt, images, onToken, onError, onComplete);
+            default:
+                onError(new Error(`不支持的后端: ${backend}`));
+        }
+    }
+    
+    // 1. Ollama
+    async analyzeOllama(prompt, images, onToken, onError, onComplete) {
         this.currentController = new AbortController();
         
         const requestBody = {
@@ -13748,51 +13894,469 @@ class OllamaAPI {
         };
         
         try {
-            const response = await fetch('http://127.0.0.1:11434/api/generate', {
+            const response = await fetch('http://localhost:11434/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody),
                 signal: this.currentController.signal
             });
             
+            if (!response.ok) throw new Error(`Ollama错误: ${response.status}`);
+            await this.streamOllamaResponse(response, onToken, onComplete);
+        } catch (error) {
+            if (error.name !== 'AbortError') onError(error);
+        } finally {
+            this.currentController = null;
+        }
+    }
+    
+    // 2. LM Studio
+    async analyzeLMStudio(prompt, images, onToken, onError, onComplete) {
+        this.currentController = new AbortController();
+        
+        const apiUrl = multimodalConfig.apiUrl || 'http://localhost:1234/v1';
+        const imageContent = images.map(img => ({
+            type: "image_url",
+            image_url: { url: `data:image/jpeg;base64,${img}` }
+        }));
+        
+        const messages = [{
+            role: "user",
+            content: [
+                { type: "text", text: prompt },
+                ...imageContent
+            ]
+        }];
+        
+        const requestBody = {
+            model: multimodalConfig.model || "local-model",
+            messages: messages,
+            stream: true,
+            max_tokens: 2048,
+            temperature: 0.7
+        };
+        
+        try {
+            const response = await fetch(`${apiUrl}/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody),
+                signal: this.currentController.signal
+            });
+            
+            if (!response.ok) throw new Error(`LM Studio错误: ${response.status}`);
+            await this.streamOpenAIResponse(response, onToken, onComplete);
+        } catch (error) {
+            if (error.name !== 'AbortError') onError(error);
+        } finally {
+            this.currentController = null;
+        }
+    }
+    
+    // 3. llama.cpp
+    async analyzeLlamaCpp(prompt, images, onToken, onError, onComplete) {
+        this.currentController = new AbortController();
+        
+        const apiUrl = multimodalConfig.apiUrl || 'http://localhost:8080';
+        const requestBody = {
+            prompt: prompt,
+            stream: true,
+            n_predict: 2048,
+            temperature: 0.7,
+            image_data: images.map(img => ({ data: img, id: 0 }))
+        };
+        
+        try {
+            const response = await fetch(`${apiUrl}/completion`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody),
+                signal: this.currentController.signal
+            });
+            
+            if (!response.ok) throw new Error(`llama.cpp错误: ${response.status}`);
+            await this.streamLlamaCppResponse(response, onToken, onComplete);
+        } catch (error) {
+            if (error.name !== 'AbortError') onError(error);
+        } finally {
+            this.currentController = null;
+        }
+    }
+    
+    // 4. 智谱 GLM-4V
+    async analyzeZhipu(prompt, images, onToken, onError, onComplete) {
+        this.currentController = new AbortController();
+        
+        const apiUrl = multimodalConfig.apiUrl || 'https://open.bigmodel.cn/api/paas/v4';
+        const apiKey = multimodalConfig.apiKey;
+        
+        if (!apiKey) {
+            onError(new Error('请填写智谱 API Key'));
+            return;
+        }
+        
+        const imageContent = images.map(img => ({
+            type: "image_url",
+            image_url: { url: `data:image/jpeg;base64,${img}` }
+        }));
+        
+        const messages = [{
+            role: "user",
+            content: [
+                { type: "text", text: prompt },
+                ...imageContent
+            ]
+        }];
+        
+        const requestBody = {
+            model: multimodalConfig.model || "glm-4v-plus",
+            messages: messages,
+            stream: true,
+            max_tokens: 2048,
+            temperature: 0.7
+        };
+        
+        try {
+            const response = await fetch(`${apiUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(requestBody),
+                signal: this.currentController.signal
+            });
+            
             if (!response.ok) {
-                throw new Error(`Ollama错误: ${response.status}`);
+                if (response.status === 401) throw new Error('智谱 API Key 无效');
+                if (response.status === 429) throw new Error('智谱 API 配额不足');
+                throw new Error(`智谱错误: ${response.status}`);
             }
+            await this.streamOpenAIResponse(response, onToken, onComplete);
+        } catch (error) {
+            if (error.name !== 'AbortError') onError(error);
+        } finally {
+            this.currentController = null;
+        }
+    }
+    
+    // 5. SiliconFlow
+    async analyzeSiliconFlow(prompt, images, onToken, onError, onComplete) {
+        this.currentController = new AbortController();
+        
+        const apiUrl = multimodalConfig.apiUrl || 'https://api.siliconflow.cn/v1';
+        const apiKey = multimodalConfig.apiKey;
+        
+        if (!apiKey) {
+            onError(new Error('请填写 SiliconFlow API Key'));
+            return;
+        }
+        
+        const imageContent = images.map(img => ({
+            type: "image_url",
+            image_url: { url: `data:image/jpeg;base64,${img}` }
+        }));
+        
+        const messages = [{
+            role: "user",
+            content: [
+                { type: "text", text: prompt },
+                ...imageContent
+            ]
+        }];
+        
+        const requestBody = {
+            model: multimodalConfig.model || "deepseek-ai/deepseek-vl2",
+            messages: messages,
+            stream: true,
+            max_tokens: 2048,
+            temperature: 0.7
+        };
+        
+        try {
+            const response = await fetch(`${apiUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(requestBody),
+                signal: this.currentController.signal
+            });
             
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let fullText = '';
+            if (!response.ok) {
+                if (response.status === 401) throw new Error('SiliconFlow API Key 无效');
+                if (response.status === 402) throw new Error('SiliconFlow 余额不足');
+                throw new Error(`SiliconFlow错误: ${response.status}`);
+            }
+            await this.streamOpenAIResponse(response, onToken, onComplete);
+        } catch (error) {
+            if (error.name !== 'AbortError') onError(error);
+        } finally {
+            this.currentController = null;
+        }
+    }
+    
+    // 6. DeepSeek VL
+    async analyzeDeepSeek(prompt, images, onToken, onError, onComplete) {
+        this.currentController = new AbortController();
+        
+        const apiUrl = multimodalConfig.apiUrl || 'https://api.deepseek.com/v1';
+        const apiKey = multimodalConfig.apiKey;
+        
+        if (!apiKey) {
+            onError(new Error('请填写 DeepSeek API Key'));
+            return;
+        }
+        
+        const imageContent = images.map(img => ({
+            type: "image_url",
+            image_url: { url: `data:image/jpeg;base64,${img}` }
+        }));
+        
+        const messages = [{
+            role: "user",
+            content: [
+                { type: "text", text: prompt },
+                ...imageContent
+            ]
+        }];
+        
+        const requestBody = {
+            model: multimodalConfig.model || "deepseek-chat",
+            messages: messages,
+            stream: true,
+            max_tokens: 2048,
+            temperature: 0.7
+        };
+        
+        try {
+            const response = await fetch(`${apiUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(requestBody),
+                signal: this.currentController.signal
+            });
             
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-                
-                for (const line of lines) {
-                    if (!line.trim()) continue;
+            if (!response.ok) {
+                if (response.status === 401) throw new Error('DeepSeek API Key 无效');
+                if (response.status === 402) throw new Error('DeepSeek 余额不足');
+                throw new Error(`DeepSeek错误: ${response.status}`);
+            }
+            await this.streamOpenAIResponse(response, onToken, onComplete);
+        } catch (error) {
+            if (error.name !== 'AbortError') onError(error);
+        } finally {
+            this.currentController = null;
+        }
+    }
+    
+    // 7. 通义千问 VL
+    async analyzeQwen(prompt, images, onToken, onError, onComplete) {
+        this.currentController = new AbortController();
+        
+        const apiUrl = multimodalConfig.apiUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+        const apiKey = multimodalConfig.apiKey;
+        
+        if (!apiKey) {
+            onError(new Error('请填写通义千问 API Key (DashScope)'));
+            return;
+        }
+        
+        const imageContent = images.map(img => ({
+            type: "image_url",
+            image_url: { url: `data:image/jpeg;base64,${img}` }
+        }));
+        
+        const messages = [{
+            role: "user",
+            content: [
+                { type: "text", text: prompt },
+                ...imageContent
+            ]
+        }];
+        
+        const requestBody = {
+            model: multimodalConfig.model || "qwen-vl-plus",
+            messages: messages,
+            stream: true,
+            max_tokens: 2048,
+            temperature: 0.7
+        };
+        
+        try {
+            const response = await fetch(`${apiUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(requestBody),
+                signal: this.currentController.signal
+            });
+            
+            if (!response.ok) {
+                if (response.status === 401) throw new Error('通义千问 API Key 无效');
+                if (response.status === 429) throw new Error('通义千问 API 配额不足');
+                throw new Error(`通义千问错误: ${response.status}`);
+            }
+            await this.streamOpenAIResponse(response, onToken, onComplete);
+        } catch (error) {
+            if (error.name !== 'AbortError') onError(error);
+        } finally {
+            this.currentController = null;
+        }
+    }
+    
+    // 8. OpenAI GPT-4V
+    async analyzeOpenAI(prompt, images, onToken, onError, onComplete) {
+        this.currentController = new AbortController();
+        
+        const apiUrl = multimodalConfig.apiUrl || 'https://api.openai.com/v1';
+        const apiKey = multimodalConfig.apiKey;
+        
+        if (!apiKey) {
+            onError(new Error('请填写 OpenAI API Key'));
+            return;
+        }
+        
+        const imageContent = images.map(img => ({
+            type: "image_url",
+            image_url: { url: `data:image/jpeg;base64,${img}` }
+        }));
+        
+        const messages = [{
+            role: "user",
+            content: [
+                { type: "text", text: prompt },
+                ...imageContent
+            ]
+        }];
+        
+        const requestBody = {
+            model: multimodalConfig.model || "gpt-4o-mini",
+            messages: messages,
+            stream: true,
+            max_tokens: 2048,
+            temperature: 0.7
+        };
+        
+        try {
+            const response = await fetch(`${apiUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(requestBody),
+                signal: this.currentController.signal
+            });
+            
+            if (!response.ok) {
+                if (response.status === 401) throw new Error('OpenAI API Key 无效');
+                if (response.status === 429) throw new Error('OpenAI API 配额不足');
+                throw new Error(`OpenAI错误: ${response.status}`);
+            }
+            await this.streamOpenAIResponse(response, onToken, onComplete);
+        } catch (error) {
+            if (error.name !== 'AbortError') onError(error);
+        } finally {
+            this.currentController = null;
+        }
+    }
+    
+    // 流式响应处理
+    async streamOllamaResponse(response, onToken, onComplete) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                try {
+                    const json = JSON.parse(line);
+                    if (json.response) {
+                        fullText += json.response;
+                        if (onToken) onToken(json.response);
+                    }
+                } catch (e) {}
+            }
+        }
+        if (onComplete) onComplete(fullText);
+    }
+    
+    async streamOpenAIResponse(response, onToken, onComplete) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith('data: ')) continue;
+                const data = trimmed.slice(6);
+                if (data === '[DONE]') continue;
+                try {
+                    const json = JSON.parse(data);
+                    const token = json.choices?.[0]?.delta?.content;
+                    if (token) {
+                        fullText += token;
+                        if (onToken) onToken(token);
+                    }
+                } catch (e) {}
+            }
+        }
+        if (onComplete) onComplete(fullText);
+    }
+    
+    async streamLlamaCppResponse(response, onToken, onComplete) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                if (line.startsWith('data: ')) {
                     try {
-                        const json = JSON.parse(line);
-                        if (json.response) {
-                            fullText += json.response;
-                            if (onToken) onToken(json.response);
+                        const json = JSON.parse(line.slice(6));
+                        if (json.content) {
+                            fullText += json.content;
+                            if (onToken) onToken(json.content);
                         }
                     } catch (e) {}
                 }
             }
-            
-            if (onComplete) onComplete(fullText);
-            
-        } catch (error) {
-            if (error.name !== 'AbortError') {
-                onError(error);
-            }
-        } finally {
-            this.currentController = null;
         }
+        if (onComplete) onComplete(fullText);
     }
     
     stop() {
@@ -13803,28 +14367,86 @@ class OllamaAPI {
     }
     
     async checkHealth() {
+        const backend = multimodalConfig.backend;
+        const config = BACKEND_CONFIGS[backend];
+        
+        switch(backend) {
+            case 'ollama':
+                return await this.checkOllamaHealth();
+            case 'lmstudio':
+                return await this.checkLMStudioHealth();
+            case 'llamacpp':
+                return await this.checkLlamaCppHealth();
+            case 'zhipu':
+                return await this.checkAPIHealth('智谱', multimodalConfig.apiKey);
+            case 'siliconflow':
+                return await this.checkAPIHealth('SiliconFlow', multimodalConfig.apiKey);
+            case 'deepseek':
+                return await this.checkAPIHealth('DeepSeek', multimodalConfig.apiKey);
+            case 'qwen':
+                return await this.checkAPIHealth('通义千问', multimodalConfig.apiKey);
+            case 'openai':
+                return await this.checkAPIHealth('OpenAI', multimodalConfig.apiKey);
+            default:
+                return { available: false, error: '未知后端' };
+        }
+    }
+    
+    async checkOllamaHealth() {
         try {
-            const res = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(3000) });
+            const res = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) });
             if (res.ok) {
                 const data = await res.json();
                 const models = data.models || [];
-                const hasMultimodal = models.some(m => 
-                    m.name.includes('llava') || m.name.includes('bakllava') || 
-                    m.name.includes('moondream') || m.name.includes('cogvlm')
-                );
-                if (!hasMultimodal) {
-                    return { available: false, error: '请先运行: ollama pull llava' };
+                const visionModels = ['llava', 'bakllava', 'moondream', 'cogvlm', 'llava-phi', 'llava-llama3'];
+                const hasVision = models.some(m => visionModels.some(vm => m.name.includes(vm)));
+                if (!hasVision) {
+                    return { available: false, error: '请安装视觉模型: ollama pull llava' };
                 }
+                return { available: true, models: models.map(m => m.name) };
+            }
+        } catch(e) {}
+        return { available: false, error: 'Ollama服务未运行 (http://localhost:11434)' };
+    }
+    
+    async checkLMStudioHealth() {
+        const apiUrl = multimodalConfig.apiUrl || 'http://localhost:1234/v1';
+        try {
+            const res = await fetch(`${apiUrl}/models`, { signal: AbortSignal.timeout(3000) });
+            if (res.ok) {
                 return { available: true };
             }
-        } catch(e) {
-            return { available: false, error: 'Ollama服务未运行，请在设置中配置' };
+        } catch(e) {}
+        return { available: false, error: `LM Studio服务未运行 (${apiUrl})` };
+    }
+    
+    async checkLlamaCppHealth() {
+        const apiUrl = multimodalConfig.apiUrl || 'http://localhost:8080';
+        try {
+            const res = await fetch(`${apiUrl}/health`, { signal: AbortSignal.timeout(3000) });
+            if (res.ok) return { available: true };
+        } catch(e) {}
+        try {
+            const res = await fetch(`${apiUrl}/completion`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: 'test', n_predict: 1, stream: false }),
+                signal: AbortSignal.timeout(3000)
+            });
+            if (res.ok || res.status === 400) return { available: true };
+        } catch(e) {}
+        return { available: false, error: `llama.cpp服务未运行 (${apiUrl})` };
+    }
+    
+    async checkAPIHealth(name, apiKey) {
+        if (!apiKey) {
+            return { available: false, error: `请填写 ${name} API Key` };
         }
-        return { available: false, error: 'Ollama服务未运行' };
+        return { available: true, keyExists: true };
     }
 }
 
-let ollamaAPI = null;
+let visionAPI = null;
 
 // ==================== 附件上传处理 ====================
 const ORIGINAL_UPLOAD = window.handleMultipleFilesUpload;
@@ -13933,6 +14555,19 @@ async function sendMultimodalMessage(userText) {
         return false;
     }
     
+    // 发送前检查后端健康状态
+    if (!visionAPI) visionAPI = new VisionAPI();
+    const health = await visionAPI.checkHealth();
+    if (!health.available) {
+        // 连接失败时提示去设置配置
+        const errorMsg = `❌ **多模态服务不可用**\n\n${health.error}\n\n💡 请点击右上角 ⚙️ 设置，在「多模态视觉识别」中配置正确的后端和API Key。`;
+        await appendMessageDOM('ai', errorMsg);
+        chat.messages.push({ role: 'assistant', content: errorMsg });
+        await saveChat(chat);
+        setGeneratingState(false);
+        return false;
+    }
+    
     const imageAttachments = currentAttachments.filter(a => a.isImage && a.status === 'success' && a.imageBase64);
     const textAttachments = currentAttachments.filter(a => !a.isImage && a.status === 'success');
     
@@ -13941,7 +14576,6 @@ async function sendMultimodalMessage(userText) {
         return false;
     }
     
-    // 显示用户消息
     let displayMsg = userText || '请分析这些图片';
     displayMsg += `\n\n🖼️ 图片 (${imageAttachments.length}张): ${imageAttachments.map(a => a.name).join(', ')}`;
     if (textAttachments.length) {
@@ -13952,7 +14586,6 @@ async function sendMultimodalMessage(userText) {
     chat.messages.push({ role: 'user', content: displayMsg });
     await saveChat(chat);
     
-    // 清空附件
     const clearedAttachments = [...currentAttachments];
     currentAttachments = [];
     refreshAttachmentsUI();
@@ -13960,7 +14593,6 @@ async function sendMultimodalMessage(userText) {
     
     setGeneratingState(true);
     
-    // 构建prompt
     let prompt = `你是一个能看懂图片的AI助手。用户上传了${imageAttachments.length}张图片。\n\n`;
     
     if (userText && userText.trim()) {
@@ -13983,14 +14615,9 @@ async function sendMultimodalMessage(userText) {
     
     const images = imageAttachments.map(att => att.imageBase64);
     
-    // 创建AI消息容器
     const aiDiv = createMessageElementSync('ai');
     let streamingDiv = aiDiv;
     let fullText = '';
-    
-    if (!ollamaAPI) {
-        ollamaAPI = new OllamaAPI();
-    }
     
     const onToken = async (token) => {
         if (streamingDiv) {
@@ -14007,7 +14634,7 @@ async function sendMultimodalMessage(userText) {
     };
     
     const onError = async (err) => {
-        console.error('Ollama错误:', err);
+        console.error('Vision API错误:', err);
         if (streamingDiv) {
             const indicator = streamingDiv.querySelector('.typing-indicator');
             if (indicator) indicator.remove();
@@ -14049,17 +14676,14 @@ async function sendMultimodalMessage(userText) {
                 applyCodeHighlighting(streamingDiv);
             }
             
-            if (autoSpeakEnabled) {
-                speechManager.speak(cleaned);
-            }
-            
+            if (autoSpeakEnabled) speechManager.speak(cleaned);
             showToast('✅ 图片分析完成');
         }
         
         setGeneratingState(false);
     };
     
-    await ollamaAPI.analyzeImages(prompt, images, onToken, onError, onComplete);
+    await visionAPI.analyze(prompt, images, onToken, onError, onComplete);
     return true;
 }
 
@@ -14139,7 +14763,7 @@ async function performOCR(file) {
     }
 }
 
-// ==================== 发送消息（核心修复） ====================
+// ==================== 发送消息 ====================
 const ORIGINAL_SEND = window.sendMessage;
 
 window.sendMessage = async function() {
@@ -14150,81 +14774,34 @@ window.sendMessage = async function() {
     
     const text = document.getElementById('userInput').value.trim();
     const hasImages = currentAttachments.some(a => a.isImage === true && a.status === 'success');
-    
-    // 关键修复：实时读取开关状态
     const isMultimodalOn = localStorage.getItem('multimodal_enabled') === 'true';
     
-    console.log('🔍 发送消息 - 开关状态:', isMultimodalOn ? '多模态模式' : 'OCR模式', '有图片:', hasImages);
-    
     if (!hasImages) {
-        // 没有图片，使用原始发送
-        if (ORIGINAL_SEND) {
-            await ORIGINAL_SEND();
-        } else if (!text && currentAttachments.length === 0) {
-            showToast('请输入消息');
-        }
+        if (ORIGINAL_SEND) await ORIGINAL_SEND();
         return;
     }
     
-    // 有图片时，根据开关状态选择模式
     if (isMultimodalOn) {
-        // 多模态模式
         await sendMultimodalMessage(text);
     } else {
-        // OCR模式（关闭状态）
         await sendOCRMessage(text);
     }
 };
 
-// 停止生成
 window.stopGeneration = function() {
-    if (ollamaAPI) ollamaAPI.stop();
+    if (visionAPI) visionAPI.stop();
     if (window._origStop) window._origStop();
 };
 window._origStop = window.stopGeneration;
 
-// ==================== 多模态指示器 ====================
-function updateIndicatorStyle(indicator, enabled) {
-    if (enabled) {
-        indicator.style.background = '#52c41a';
-        indicator.style.color = 'white';
-    } else {
-        indicator.style.background = '#888';
-        indicator.style.color = 'white';
-    }
-}
-
-async function checkBackendHealth() {
-    const backend = multimodalConfig.backend;
-    
-    if (backend === 'ollama') {
-        try {
-            const res = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(3000) });
-            if (res.ok) {
-                const data = await res.json();
-                const models = data.models || [];
-                const hasMultimodal = models.some(m => 
-                    m.name.includes('llava') || m.name.includes('bakllava') || 
-                    m.name.includes('moondream') || m.name.includes('cogvlm')
-                );
-                if (!hasMultimodal) {
-                    return { available: false, error: '请运行: ollama pull llava' };
-                }
-                return { available: true };
-            }
-        } catch(e) {
-            return { available: false, error: 'Ollama服务未运行' };
-        }
-        return { available: false, error: 'Ollama服务未运行' };
-    }
-    return { available: true };
-}
-
+// ==================== UI组件 - 简化版，点击仅切换开关 ====================
 function addMultimodalIndicator() {
     const headerLeft = document.querySelector('.chat-header-left');
     if (!headerLeft || document.getElementById('multimodalIndicator')) return;
     
     const isEnabled = localStorage.getItem('multimodal_enabled') === 'true';
+    const backend = localStorage.getItem('multimodal_backend') || 'ollama';
+    const config = BACKEND_CONFIGS[backend] || BACKEND_CONFIGS.ollama;
     
     const indicator = document.createElement('div');
     indicator.id = 'multimodalIndicator';
@@ -14234,53 +14811,65 @@ function addMultimodalIndicator() {
     indicator.style.borderRadius = '20px';
     indicator.style.fontSize = '12px';
     indicator.style.transition = 'all 0.2s';
-    updateIndicatorStyle(indicator, isEnabled);
-    indicator.innerHTML = isEnabled ? '📸 多模态已启用' : '📸 多模态已关闭';
+    indicator.style.background = isEnabled ? '#52c41a' : '#888';
+    indicator.style.color = 'white';
+    indicator.innerHTML = isEnabled ? `${config.icon} 视觉开启` : '📸 视觉关闭';
+    indicator.title = isEnabled ? `当前后端: ${config.name}\n点击关闭视觉模式` : `点击开启视觉模式\n（支持图片理解）`;
     
+    // 点击按钮：仅切换开关状态，不弹出设置面板
     indicator.onclick = async () => {
         const currentState = localStorage.getItem('multimodal_enabled') === 'true';
         const newState = !currentState;
-        localStorage.setItem('multimodal_enabled', newState);
-        
-        updateIndicatorStyle(indicator, newState);
-        indicator.innerHTML = newState ? '📸 多模态已启用' : '📸 多模态已关闭';
         
         if (newState) {
-            const health = await checkBackendHealth();
+            // 开启前检查后端健康
+            if (!visionAPI) visionAPI = new VisionAPI();
+            const health = await visionAPI.checkHealth();
+            
             if (!health.available) {
-                showToast(`⚠️ ${health.error}，请在设置中配置`);
-                localStorage.setItem('multimodal_enabled', 'false');
-                updateIndicatorStyle(indicator, false);
-                indicator.innerHTML = '📸 多模态已关闭';
+                // 连接失败时显示提示，并弹出设置面板
+                const backendName = BACKEND_CONFIGS[multimodalConfig.backend]?.name || multimodalConfig.backend;
+                showToast(`❌ ${health.error}`);
+                
+                // 弹出设置面板，引导用户配置
+                const settingsModal = document.getElementById('settingsModal');
+                if (settingsModal) {
+                    settingsModal.style.display = 'flex';
+                    setTimeout(() => {
+                        const section = document.getElementById('multimodalSection');
+                        if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                }
                 return;
             }
-            showToast('🔮 多模态模式已开启');
+            
+            // 健康检查通过，开启
+            localStorage.setItem('multimodal_enabled', 'true');
+            multimodalConfig.enabled = true;
+            indicator.style.background = '#52c41a';
+            indicator.innerHTML = `${config.icon} 视觉开启`;
+            indicator.title = `当前后端: ${config.name}\n点击关闭视觉模式`;
+            showToast(`✅ 视觉模式已开启 (${config.name})`);
+            if (window.addDebugLog) window.addDebugLog(`📸 视觉模式已开启，后端: ${config.name}`, 'success');
         } else {
-            showToast('📝 OCR模式已开启');
-        }
-        
-        const settingToggle = document.getElementById('multimodalToggle');
-        if (settingToggle) {
-            settingToggle.checked = newState;
-            const panel = document.getElementById('multimodalSettingsPanel');
-            if (panel) panel.style.display = newState ? 'block' : 'none';
+            // 关闭
+            localStorage.setItem('multimodal_enabled', 'false');
+            multimodalConfig.enabled = false;
+            indicator.style.background = '#888';
+            indicator.innerHTML = '📸 视觉关闭';
+            indicator.title = '点击开启视觉模式\n（支持图片理解）';
+            showToast('📸 视觉模式已关闭，将使用OCR识别图片文字');
+            if (window.addDebugLog) window.addDebugLog('📸 视觉模式已关闭，切换到OCR模式', 'info');
         }
     };
     
-    // 手机端隐藏
-    if (window.innerWidth <= 768) {
-        indicator.style.display = 'none';
-    }
+    if (window.innerWidth <= 768) indicator.style.display = 'none';
     
     const ragMode = document.querySelector('.rag-mode-header-wrapper');
-    if (ragMode) {
-        ragMode.after(indicator);
-    } else {
-        headerLeft.appendChild(indicator);
-    }
+    if (ragMode) ragMode.after(indicator);
+    else headerLeft.appendChild(indicator);
 }
 
-// ==================== 设置UI ====================
 function addMultimodalSettings() {
     const settingsModal = document.getElementById('settingsModal');
     if (!settingsModal) return;
@@ -14290,7 +14879,14 @@ function addMultimodalSettings() {
     if (document.getElementById('multimodalSection')) return;
     
     const savedEnabled = localStorage.getItem('multimodal_enabled') === 'true';
+    const savedBackend = localStorage.getItem('multimodal_backend') || 'ollama';
     const savedModel = localStorage.getItem('multimodal_model') || 'llava';
+    const savedApiUrl = localStorage.getItem('multimodal_api_url') || '';
+    const savedApiKey = localStorage.getItem('multimodal_apikey') || '';
+    
+    const backendOptions = Object.entries(BACKEND_CONFIGS).map(([key, cfg]) => 
+        `<option value="${key}" ${savedBackend === key ? 'selected' : ''}>${cfg.icon} ${cfg.name}</option>`
+    ).join('');
     
     const section = document.createElement('div');
     section.id = 'multimodalSection';
@@ -14300,80 +14896,264 @@ function addMultimodalSettings() {
     section.style.borderRadius = '16px';
     section.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h4 style="margin: 0;">🦙 Ollama 多模态视觉识别</h4>
-            <label class="switch">
-                <input type="checkbox" id="multimodalToggle" ${savedEnabled ? 'checked' : ''}>
-                <span class="slider"></span>
-            </label>
+            <h4 style="margin: 0;">📸 多模态视觉识别配置</h4>
+            <div style="font-size: 12px; color: var(--text-secondary);">💡 点击顶部按钮开启/关闭</div>
         </div>
-        <div id="multimodalSettingsPanel" style="${savedEnabled ? '' : 'display: none;'}">
-            <div style="margin-bottom: 16px; padding: 12px; background: var(--knowledge-bg); border-radius: 12px;">
+        <div style="margin-bottom: 16px;">
+            <label>🎯 后端选择</label>
+            <select id="multimodalBackendSelect" style="width: 100%; padding: 10px; border-radius: 12px; margin-top: 6px;">
+                ${backendOptions}
+            </select>
+            <div id="backendInstruction" style="font-size: 11px; color: var(--text-secondary); margin-top: 8px; padding: 6px; background: var(--knowledge-bg); border-radius: 8px;">
+                ${BACKEND_CONFIGS[savedBackend]?.instruction || ''}
+            </div>
+        </div>
+        
+        <div id="ollamaConfig" style="display: ${savedBackend === 'ollama' ? 'block' : 'none'}; margin-bottom: 16px;">
+            <div style="padding: 12px; background: var(--knowledge-bg); border-radius: 12px;">
                 <div style="font-weight: 500;">🦙 Ollama 配置</div>
                 <div style="font-size: 12px; margin-top: 8px;">
-                    <strong>安装步骤：</strong><br>
-                    1. 下载 Ollama: <a href="https://ollama.com/" target="_blank">https://ollama.com/</a><br>
-                    2. 下载多模态模型: <code>ollama pull llava</code><br>
-                    3. 启动服务: <code>ollama serve</code>
+                    <strong>安装命令：</strong><br>
+                    <code>ollama pull llava</code><br>
+                    <code>ollama serve</code><br>
+                    <strong>默认地址：</strong> http://localhost:11434
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>🤖 模型</label>
+                    <select id="ollamaModelSelect" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                        <option value="llava" ${savedModel === 'llava' ? 'selected' : ''}>llava (推荐)</option>
+                        <option value="bakllava" ${savedModel === 'bakllava' ? 'selected' : ''}>bakllava</option>
+                        <option value="moondream" ${savedModel === 'moondream' ? 'selected' : ''}>moondream</option>
+                    </select>
                 </div>
             </div>
-            <div style="margin-bottom: 16px;">
-                <label>🤖 多模态模型</label>
-                <select id="ollamaModelSelect" style="width: 100%; padding: 10px; border-radius: 12px; margin-top: 6px;">
-                    <option value="llava" ${savedModel === 'llava' ? 'selected' : ''}>llava (推荐)</option>
-                    <option value="bakllava" ${savedModel === 'bakllava' ? 'selected' : ''}>bakllava</option>
-                    <option value="moondream" ${savedModel === 'moondream' ? 'selected' : ''}>moondream</option>
-                </select>
-            </div>
-            <div style="display: flex; gap: 12px;">
-                <button id="checkOllamaBtn" class="kb-btn" style="background: var(--primary-color);">🔌 检查连接</button>
+        </div>
+        
+        <div id="lmstudioConfig" style="display: ${savedBackend === 'lmstudio' ? 'block' : 'none'}; margin-bottom: 16px;">
+            <div style="padding: 12px; background: var(--knowledge-bg); border-radius: 12px;">
+                <div style="font-weight: 500;">🎯 LM Studio 配置</div>
+                <div style="font-size: 12px; margin-top: 8px;">
+                    <strong>步骤：</strong><br>
+                    1. 下载支持视觉的GGUF模型 (llava, bakllava)<br>
+                    2. 加载模型后点击 "Local Inference Server" 图标<br>
+                    3. 点击 "Start Server"<br>
+                    <strong>默认端口：</strong> 1234
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>🔗 API地址</label>
+                    <input type="text" id="lmstudioApiUrl" value="${savedApiUrl || 'http://localhost:1234/v1'}" placeholder="http://localhost:1234/v1" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                    <label style="margin-top: 8px;">🤖 模型名称</label>
+                    <input type="text" id="lmstudioModelName" value="${savedModel || 'local-model'}" placeholder="local-model" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                </div>
             </div>
         </div>
+        
+        <div id="llamacppConfig" style="display: ${savedBackend === 'llamacpp' ? 'block' : 'none'}; margin-bottom: 16px;">
+            <div style="padding: 12px; background: var(--knowledge-bg); border-radius: 12px;">
+                <div style="font-weight: 500;">🔧 llama.cpp 配置</div>
+                <div style="font-size: 12px; margin-top: 8px;">
+                    <strong>启动命令：</strong><br>
+                    <code>./server -m llava-v1.5-7b.gguf --mmproj mmproj-llava-v1.5-7b.gguf</code>
+                    <strong>默认端口：</strong> 8080
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>🔗 API地址</label>
+                    <input type="text" id="llamacppApiUrl" value="${savedApiUrl || 'http://localhost:8080'}" placeholder="http://localhost:8080" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                </div>
+            </div>
+        </div>
+        
+        <div id="zhipuConfig" style="display: ${savedBackend === 'zhipu' ? 'block' : 'none'}; margin-bottom: 16px;">
+            <div style="padding: 12px; background: var(--knowledge-bg); border-radius: 12px;">
+                <div style="font-weight: 500;">🚀 智谱 GLM-4V 配置</div>
+                <div style="font-size: 12px; margin-top: 8px;">
+                    <strong>获取API Key：</strong><br>
+                    <a href="https://open.bigmodel.cn/" target="_blank">https://open.bigmodel.cn/</a>
+                    <strong>API格式：</strong> xxx.yyy
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>🔑 API Key</label>
+                    <input type="password" id="zhipuApiKey" value="${savedApiKey}" placeholder="xxx.yyy" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                    <label style="margin-top: 8px;">🤖 模型</label>
+                    <select id="zhipuModelSelect" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                        <option value="glm-4v-plus" ${savedModel === 'glm-4v-plus' ? 'selected' : ''}>glm-4v-plus</option>
+                        <option value="glm-4v-flash" ${savedModel === 'glm-4v-flash' ? 'selected' : ''}>glm-4v-flash</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div id="siliconflowConfig" style="display: ${savedBackend === 'siliconflow' ? 'block' : 'none'}; margin-bottom: 16px;">
+            <div style="padding: 12px; background: var(--knowledge-bg); border-radius: 12px;">
+                <div style="font-weight: 500;">🧠 SiliconFlow 配置</div>
+                <div style="font-size: 12px; margin-top: 8px;">
+                    <strong>获取API Key：</strong><br>
+                    <a href="https://cloud.siliconflow.cn/" target="_blank">https://cloud.siliconflow.cn/</a>
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>🔑 API Key</label>
+                    <input type="password" id="siliconflowApiKey" value="${savedApiKey}" placeholder="sk-xxx" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                    <label style="margin-top: 8px;">🤖 模型</label>
+                    <select id="siliconflowModelSelect" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                        <option value="deepseek-ai/deepseek-vl2" ${savedModel === 'deepseek-ai/deepseek-vl2' ? 'selected' : ''}>DeepSeek-VL2</option>
+                        <option value="Qwen/Qwen2-VL-72B-Instruct" ${savedModel === 'Qwen/Qwen2-VL-72B-Instruct' ? 'selected' : ''}>Qwen2-VL-72B</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div id="deepseekConfig" style="display: ${savedBackend === 'deepseek' ? 'block' : 'none'}; margin-bottom: 16px;">
+            <div style="padding: 12px; background: var(--knowledge-bg); border-radius: 12px;">
+                <div style="font-weight: 500;">🔥 DeepSeek VL 配置</div>
+                <div style="font-size: 12px; margin-top: 8px;">
+                    <strong>获取API Key：</strong><br>
+                    <a href="https://platform.deepseek.com/" target="_blank">https://platform.deepseek.com/</a>
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>🔑 API Key</label>
+                    <input type="password" id="deepseekApiKey" value="${savedApiKey}" placeholder="sk-xxx" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                    <label style="margin-top: 8px;">🤖 模型</label>
+                    <select id="deepseekModelSelect" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                        <option value="deepseek-chat" ${savedModel === 'deepseek-chat' ? 'selected' : ''}>deepseek-chat (支持图片)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div id="qwenConfig" style="display: ${savedBackend === 'qwen' ? 'block' : 'none'}; margin-bottom: 16px;">
+            <div style="padding: 12px; background: var(--knowledge-bg); border-radius: 12px;">
+                <div style="font-weight: 500;">📖 通义千问 VL 配置</div>
+                <div style="font-size: 12px; margin-top: 8px;">
+                    <strong>获取API Key：</strong><br>
+                    <a href="https://dashscope.console.aliyun.com/" target="_blank">https://dashscope.console.aliyun.com/</a>
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>🔑 API Key (DashScope)</label>
+                    <input type="password" id="qwenApiKey" value="${savedApiKey}" placeholder="sk-xxx" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                    <label style="margin-top: 8px;">🤖 模型</label>
+                    <select id="qwenModelSelect" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                        <option value="qwen-vl-plus" ${savedModel === 'qwen-vl-plus' ? 'selected' : ''}>qwen-vl-plus</option>
+                        <option value="qwen-vl-max" ${savedModel === 'qwen-vl-max' ? 'selected' : ''}>qwen-vl-max</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div id="openaiConfig" style="display: ${savedBackend === 'openai' ? 'block' : 'none'}; margin-bottom: 16px;">
+            <div style="padding: 12px; background: var(--knowledge-bg); border-radius: 12px;">
+                <div style="font-weight: 500;">🤖 OpenAI GPT-4V 配置</div>
+                <div style="font-size: 12px; margin-top: 8px;">
+                    <strong>获取API Key：</strong><br>
+                    <a href="https://platform.openai.com/api-keys" target="_blank">https://platform.openai.com/api-keys</a>
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>🔑 API Key</label>
+                    <input type="password" id="openaiApiKey" value="${savedApiKey}" placeholder="sk-proj-xxx" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                    <label style="margin-top: 8px;">🤖 模型</label>
+                    <select id="openaiModelSelect" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                        <option value="gpt-4o-mini" ${savedModel === 'gpt-4o-mini' ? 'selected' : ''}>gpt-4o-mini (经济)</option>
+                        <option value="gpt-4o" ${savedModel === 'gpt-4o' ? 'selected' : ''}>gpt-4o (推荐)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 12px; margin-top: 16px;">
+            <button id="checkVisionHealthBtn" class="kb-btn" style="background: var(--primary-color);">🔌 测试连接</button>
+            <button id="saveMultimodalConfigBtn" class="kb-btn" style="background: var(--primary-color);">💾 保存配置</button>
+        </div>
+        <div id="visionHealthResult" style="margin-top: 12px; font-size: 12px; color: var(--text-secondary);"></div>
     `;
     
     const programmingSection = document.getElementById('programmingModeSection');
-    if (programmingSection) {
-        programmingSection.insertAdjacentElement('afterend', section);
-    } else {
-        modalBody.appendChild(section);
-    }
+    if (programmingSection) programmingSection.insertAdjacentElement('afterend', section);
+    else modalBody.appendChild(section);
     
-    // 绑定事件
-    const toggle = document.getElementById('multimodalToggle');
-    const panel = document.getElementById('multimodalSettingsPanel');
-    const modelSelect = document.getElementById('ollamaModelSelect');
+    // 后端选择联动
+    const backendSelect = document.getElementById('multimodalBackendSelect');
+    const instructionDiv = document.getElementById('backendInstruction');
     
-    if (toggle) {
-        toggle.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
-            localStorage.setItem('multimodal_enabled', enabled);
-            panel.style.display = enabled ? 'block' : 'none';
+    if (backendSelect) {
+        backendSelect.addEventListener('change', (e) => {
+            const backend = e.target.value;
+            localStorage.setItem('multimodal_backend', backend);
+            multimodalConfig.backend = backend;
             
-            const indicator = document.getElementById('multimodalIndicator');
-            if (indicator) {
-                updateIndicatorStyle(indicator, enabled);
-                indicator.innerHTML = enabled ? '📸 多模态已启用' : '📸 多模态已关闭';
+            const configs = ['ollama', 'lmstudio', 'llamacpp', 'zhipu', 'siliconflow', 'deepseek', 'qwen', 'openai'];
+            for (const cfg of configs) {
+                const el = document.getElementById(`${cfg}Config`);
+                if (el) el.style.display = backend === cfg ? 'block' : 'none';
             }
             
-            showToast(enabled ? '🔮 多模态模式已开启' : '📝 OCR模式已开启');
+            if (instructionDiv) {
+                instructionDiv.innerHTML = BACKEND_CONFIGS[backend]?.instruction || '';
+            }
+            
+            // 更新顶部按钮图标
+            const indicator = document.getElementById('multimodalIndicator');
+            if (indicator && localStorage.getItem('multimodal_enabled') === 'true') {
+                const config = BACKEND_CONFIGS[backend];
+                indicator.innerHTML = `${config.icon} 视觉开启`;
+                indicator.title = `当前后端: ${config.name}\n点击关闭视觉模式`;
+            }
         });
     }
     
-    if (modelSelect) {
-        modelSelect.addEventListener('change', (e) => {
-            localStorage.setItem('multimodal_model', e.target.value);
-            multimodalConfig.model = e.target.value;
+    // 保存配置
+    const saveBtn = document.getElementById('saveMultimodalConfigBtn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            // 已在各输入框的change事件中保存
+            showToast('✅ 配置已保存');
         });
     }
     
-    const checkBtn = document.getElementById('checkOllamaBtn');
+    // 绑定各输入框保存事件
+    const bindSave = (id, key, type) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', (e) => {
+                if (type === 'apiKey') localStorage.setItem('multimodal_apikey', e.target.value);
+                else if (type === 'apiUrl') localStorage.setItem('multimodal_api_url', e.target.value);
+                else if (type === 'model') localStorage.setItem('multimodal_model', e.target.value);
+                multimodalConfig[key] = e.target.value;
+            });
+        }
+    };
+    
+    bindSave('ollamaModelSelect', 'model', 'model');
+    bindSave('lmstudioApiUrl', 'apiUrl', 'apiUrl');
+    bindSave('lmstudioModelName', 'model', 'model');
+    bindSave('llamacppApiUrl', 'apiUrl', 'apiUrl');
+    bindSave('zhipuApiKey', 'apiKey', 'apiKey');
+    bindSave('zhipuModelSelect', 'model', 'model');
+    bindSave('siliconflowApiKey', 'apiKey', 'apiKey');
+    bindSave('siliconflowModelSelect', 'model', 'model');
+    bindSave('deepseekApiKey', 'apiKey', 'apiKey');
+    bindSave('deepseekModelSelect', 'model', 'model');
+    bindSave('qwenApiKey', 'apiKey', 'apiKey');
+    bindSave('qwenModelSelect', 'model', 'model');
+    bindSave('openaiApiKey', 'apiKey', 'apiKey');
+    bindSave('openaiModelSelect', 'model', 'model');
+    
+    // 测试连接
+    const checkBtn = document.getElementById('checkVisionHealthBtn');
+    const resultDiv = document.getElementById('visionHealthResult');
     if (checkBtn) {
         checkBtn.addEventListener('click', async () => {
-            showToast('检查Ollama服务...');
-            const status = await checkBackendHealth();
-            if (status.available) {
-                showToast('✅ Ollama服务正常');
-            } else {
-                showToast(`❌ ${status.error}`);
+            showToast('检查服务连接...');
+            if (!visionAPI) visionAPI = new VisionAPI();
+            const status = await visionAPI.checkHealth();
+            if (resultDiv) {
+                if (status.available) {
+                    resultDiv.innerHTML = `✅ 连接正常！${status.models ? `可用模型: ${status.models.join(', ')}` : ''}`;
+                    resultDiv.style.color = '#52c41a';
+                    showToast(`✅ ${BACKEND_CONFIGS[multimodalConfig.backend].name} 服务正常`);
+                } else {
+                    resultDiv.innerHTML = `❌ ${status.error}`;
+                    resultDiv.style.color = '#ff4d4f';
+                    showToast(`❌ ${status.error}`);
+                }
             }
         });
     }
@@ -14386,32 +15166,29 @@ function initMultimodal() {
     
     if (window.addDebugLog) {
         const isEnabled = localStorage.getItem('multimodal_enabled') === 'true';
-        window.addDebugLog(`📸 多模态模块已初始化 - 模式: ${isEnabled ? '多模态' : 'OCR'}`, 'success');
+        const backend = localStorage.getItem('multimodal_backend') || 'ollama';
+        const config = BACKEND_CONFIGS[backend];
+        window.addDebugLog(`📸 多模态模块已初始化 - 后端: ${config.name}, 模式: ${isEnabled ? '视觉开启' : '视觉关闭'}`, 'success');
     }
 }
 
-// 添加CSS隐藏手机端指示器
 const style = document.createElement('style');
 style.textContent = `
 @media (max-width: 768px) {
-    #multimodalIndicator,
-    #cognitiveIndicator {
+    #multimodalIndicator, #cognitiveIndicator {
         display: none !important;
     }
 }
 `;
 document.head.appendChild(style);
 
-// 启动
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(initMultimodal, 2000);
-    });
+    document.addEventListener('DOMContentLoaded', () => setTimeout(initMultimodal, 2000));
 } else {
     setTimeout(initMultimodal, 2000);
 }
 
-console.log('📸 多模态模块已加载 - 默认关闭，需手动开启');
+console.log('📸 多模态模块已加载 - 点击顶部按钮开关视觉模式');
 </script>
 </body>
 </html>
