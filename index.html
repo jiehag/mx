@@ -309,8 +309,8 @@
         .kb-section-header:hover { background: rgba(97, 92, 237, 0.08); }
         .kb-collapse-icon { font-size: 18px; transition: transform 0.3s ease; color: var(--text-secondary); }
         .kb-collapse-icon.collapsed { transform: rotate(-90deg); }
-        .kb-section-content { max-height: 800px; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin 0.3s ease; opacity: 1; }
-        .kb-section-content.collapsed { max-height: 0; opacity: 0; margin: 0; padding: 0; }
+        .kb-section-content { max-height: none; overflow-y: visible; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, margin 0.3s ease; opacity: 1; }
+.kb-section-content.collapsed { max-height: 0; opacity: 0; margin: 0; padding: 0; overflow-y: hidden; }
         .kb-section { margin-bottom: 16px; padding: 12px; background: var(--knowledge-bg); border-radius: 16px; transition: padding 0.2s; }
         .kb-toggle { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; }
         .switch { position: relative; display: inline-block; width: 48px; height: 24px; }
@@ -582,6 +582,18 @@
         min-width: 0 !important;
         flex: 1 !important;
     }
+}
+/* 修复左侧栏按钮被截断问题 - 强制移除高度限制 */
+.kb-section {
+    overflow: visible !important;
+}
+.kb-section-content {
+    max-height: none !important;
+    overflow-y: visible !important;
+}
+.kb-section-content.collapsed {
+    max-height: 0 !important;
+    overflow-y: hidden !important;
 }
     </style>
 </head>
