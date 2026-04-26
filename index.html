@@ -299,7 +299,7 @@
         
         .sidebar { width: 280px; background: var(--sidebar-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; padding: 16px; box-sizing: border-box; transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1), background 0.3s, margin-left 0.3s; overflow-y: auto; flex-shrink: 0; position: relative; left: 0; top: 0; bottom: 0; z-index: 100; }
         @media (min-width: 769px) { .sidebar { transform: translateX(0) !important; margin-left: 0; } .sidebar.collapsed-desktop { margin-left: -280px; } .mobile-menu-toggle { display: none !important; } }
-        @media (max-width: 768px) { .chat-header { padding: 6px 12px; gap: 8px; } .chat-header-left { gap: 8px; flex: 1; } .mobile-menu-toggle { display: flex; background: var(--ai-msg-bg); border: 1px solid var(--border-color); border-radius: 32px; width: 36px; height: 36px; min-width: 36px; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; color: var(--text-primary); touch-action: manipulation; flex-shrink: 0; } .desktop-menu-toggle { display: none !important; } .rag-mode-header-select { width: 44px; min-width: 44px; padding: 8px 0; text-align: center; font-size: 18px; flex-shrink: 0; } .chat-actions { gap: 4px; } .chat-actions button { width: 36px; height: 36px; min-width: 36px; padding: 0; font-size: 16px; } .settings-btn, .theme-toggle-btn, .voice-control-btn, .template-btn, .global-backup-btn, .compress-btn { min-width: 36px; min-height: 36px; padding: 0; font-size: 16px; }.mode-status-indicator {display: none !important;} .sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); z-index: 1100; } .sidebar.open { transform: translateX(0); box-shadow: 2px 0 12px rgba(0,0,0,0.15); } .sidebar.collapsed-desktop { margin-left: 0; } .sidebar-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1050; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; } .sidebar-overlay.active { opacity: 1; visibility: visible; } .chat-container { padding: 12px 12px !important; } .input-area { padding: 6px 12px; padding-bottom: max(6px, env(safe-area-inset-bottom)); } .quick-template-bar { margin: 0 12px 8px 12px; } .message .avatar { width: 32px; height: 32px; font-size: 12px; } .content { font-size: 14px; } .message { gap: 8px; } .debug-panel { bottom: 70px; right: 12px; left: auto; z-index: 1000; position: fixed; } .attachments-manager { padding: 6px 10px; margin-bottom: 6px; } .attachment-item { font-size: 11px; padding: 2px 6px; } .modal-content { max-width: 95%; width: 95%; margin: 16px; } .template-grid { grid-template-columns: 1fr; max-height: 60vh; } .quick-template-bar { gap: 6px; padding: 6px 10px; } .quick-template-item { padding: 4px 10px; font-size: 11px; } .message-actions { gap: 6px; } .action-btn, .speak-btn { padding: 4px 10px; font-size: 11px; } }
+        @media (max-width: 768px) { .chat-header { padding: 6px 12px; gap: 8px; } .chat-header-left { gap: 8px; flex: 1; } .mobile-menu-toggle { display: flex; background: var(--ai-msg-bg); border: 1px solid var(--border-color); border-radius: 32px; width: 36px; height: 36px; min-width: 36px; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; color: var(--text-primary); touch-action: manipulation; flex-shrink: 0; } .desktop-menu-toggle { display: none !important; } .rag-mode-header-select { width: 44px; min-width: 44px; padding: 8px 0; text-align: center; font-size: 18px; flex-shrink: 0; } .chat-actions { gap: 4px; } .chat-actions button { width: 36px; height: 36px; min-width: 36px; padding: 0; font-size: 16px; } .settings-btn, .theme-toggle-btn, .voice-control-btn, .template-btn, .global-backup-btn, .compress-btn { min-width: 36px; min-height: 36px; padding: 0; font-size: 16px; }.mode-status-indicator {display: none !important;} #cognitiveIndicator { display: none !important; }.sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); z-index: 1100; } .sidebar.open { transform: translateX(0); box-shadow: 2px 0 12px rgba(0,0,0,0.15); } .sidebar.collapsed-desktop { margin-left: 0; } .sidebar-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1050; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; } .sidebar-overlay.active { opacity: 1; visibility: visible; } .chat-container { padding: 12px 12px !important; } .input-area { padding: 6px 12px; padding-bottom: max(6px, env(safe-area-inset-bottom)); } .quick-template-bar { margin: 0 12px 8px 12px; } .message .avatar { width: 32px; height: 32px; font-size: 12px; } .content { font-size: 14px; } .message { gap: 8px; } .debug-panel { bottom: 70px; right: 12px; left: auto; z-index: 1000; position: fixed; } .attachments-manager { padding: 6px 10px; margin-bottom: 6px; } .attachment-item { font-size: 11px; padding: 2px 6px; } .modal-content { max-width: 95%; width: 95%; margin: 16px; } .template-grid { grid-template-columns: 1fr; max-height: 60vh; } .quick-template-bar { gap: 6px; padding: 6px 10px; } .quick-template-item { padding: 4px 10px; font-size: 11px; } .message-actions { gap: 6px; } .action-btn, .speak-btn { padding: 4px 10px; font-size: 11px; } }
         @media (min-width: 769px) { .chat-container { padding: 20px 15%; } }
         
         .new-chat-btn { background: var(--primary-color); color: white; border: none; padding: 12px; border-radius: 12px; cursor: pointer; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; touch-action: manipulation; min-height: 44px; }
@@ -823,154 +823,279 @@
     
     <div class="modal-overlay" id="templateDialog" style="display:none;" onclick="if(event.target===this) closeTemplateDialog()"><div class="modal-content" style="max-width: 500px;"><div class="modal-header"><h3 id="dialogTitle">📝 编辑模板</h3><button class="icon-btn" onclick="closeTemplateDialog()">✕</button></div><div class="modal-body"><input type="text" id="templateName" placeholder="模板名称" style="width:100%; padding:10px; margin-bottom:12px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color);"><select id="templateCategory" style="width:100%; padding:10px; margin-bottom:12px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color);"><option value="通用">📌 通用</option><option value="编程">💻 编程</option><option value="写作">✍️ 写作</option><option value="翻译">🌐 翻译</option><option value="分析">📊 分析</option><option value="教育">📚 教育</option><option value="创意">🎨 创意</option></select><textarea id="templateContent" rows="6" placeholder="模板内容...&#10;支持变量: {{input}}" style="width:100%; padding:10px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color);"></textarea><div class="dialog-buttons" style="margin-top: 16px;"><button class="kb-btn" style="flex:1;" onclick="closeTemplateDialog()">取消</button><button class="kb-btn primary" style="flex:1;" onclick="saveTemplate()">保存</button></div></div></div></div>
     
-    <div class="modal-overlay" id="settingsModal" onclick="if(event.target===this) closeSettings()">
-        <div class="modal-content" style="max-width: 520px;">
-            <div class="modal-header">
-                <h3>⚙️ 模型参数设置</h3>
-                <button class="icon-btn" onclick="closeSettings()">✕</button>
+<div class="modal-overlay" id="settingsModal" onclick="if(event.target===this) closeSettings()">
+    <div class="modal-content" style="max-width: 520px;">
+        <div class="modal-header">
+            <h3>⚙️ 模型参数设置</h3>
+            <button class="icon-btn" onclick="closeSettings()">✕</button>
+        </div>
+        <div class="modal-body">
+            
+            <!-- ========== 1. 快速场景配置（放在最上面） ========== -->
+            <div class="preset-api-selector" id="scenePresetsSection" style="margin-bottom: 20px;">
+                <div class="preset-api-title">
+                    <span>🎯</span> 快速场景配置
+                </div>
+                <div class="preset-buttons" id="scenePresetButtons">
+                    <button class="scene-preset-btn" data-scene="daily">💬 日常使用 (2K/8K)</button>
+                    <button class="scene-preset-btn" data-scene="code">💻 代码/长文 (4K/16K)</button>
+                    <button class="scene-preset-btn" data-scene="economy">💰 高效省钱 (1K/8K)</button>
+                    <button class="scene-preset-btn" data-scene="long">📚 超长文档 (4K/32K)</button>
+                    <button class="scene-preset-btn" data-scene="ultra">🚀 极限上下文 (4K/128K)</button>
+                    <button class="scene-preset-btn" data-scene="analysis">🔬 深度分析 (3K/24K)</button>
+                    <button class="scene-preset-btn" data-scene="creative">✍️ 创意写作 (8K/32K)</button>
+                </div>
+                <div class="api-key-hint" id="sceneHint">
+                    💡 一键切换，自动调整 Max Tokens 和 Context Size<br>📚 超长文档(32K) | 🚀 极限(128K) | 🔬 深度分析(24K) | ✍️ 创意写作(8K输出)
+                </div>
             </div>
-            <div class="modal-body">
-                <div class="preset-api-selector">
-                    <div class="preset-api-title">
-                        <span>⚡</span> 快速选择 API
-                    </div>
-                    <div class="preset-buttons" id="presetApiButtons">
-                        <button class="preset-btn" data-api="deepseek">🔥 DeepSeek 官方</button>
-                        <button class="preset-btn" data-api="siliconflow">🧠 SiliconFlow</button>
-                        <button class="preset-btn" data-api="openai">🤖 OpenAI 官方</button>
-                        <button class="preset-btn" data-api="zhipu">🚀 智谱GLM</button>
-                        <button class="preset-btn" data-api="lmstudio">🎯 LM Studio (本地)</button>
-                        <button class="preset-btn" data-api="ollama">🦙 Ollama (本地)</button>
-                        <button class="preset-btn" data-api="llama">🔧 llama.cpp (本地)</button>
-                        <button class="preset-btn" data-api="custom">✏️ 自定义</button>
-                    </div>
-                    <div class="api-key-hint" id="apiKeyHint">
-                        💡 提示：选择预设API后，只需填写对应的 API Key 即可使用
-                    </div>
-                    <div class="custom-api-row" id="customApiRow" style="display: none;">
-                        <input type="text" id="customApiUrl" placeholder="自定义 API 地址 (如: https://api.example.com/v1)">
-                        <button onclick="applyCustomApi()">应用</button>
-                    </div>
-                </div>
 
-                <div class="preset-api-selector" id="scenePresetsSection" style="margin-bottom: 16px;">
-                    <div class="preset-api-title">
-                        <span>🎯</span> 快速场景配置
-                    </div>
-                    <div class="preset-buttons" id="scenePresetButtons">
-                        <button class="scene-preset-btn" data-scene="daily">💬 日常使用 (2K/8K)</button>
-                        <button class="scene-preset-btn" data-scene="code">💻 代码/长文 (4K/16K)</button>
-                        <button class="scene-preset-btn" data-scene="economy">💰 高效省钱 (1K/8K)</button>
-                        <button class="scene-preset-btn" data-scene="long">📚 超长文档 (4K/32K)</button>
-                        <button class="scene-preset-btn" data-scene="ultra">🚀 极限上下文 (4K/128K)</button>
-                        <button class="scene-preset-btn" data-scene="analysis">🔬 深度分析 (3K/24K)</button>
-                        <button class="scene-preset-btn" data-scene="creative">✍️ 创意写作 (8K/32K)</button>
-                    </div>
-                    <div class="api-key-hint" id="sceneHint">
-                        💡 一键切换，自动调整 Max Tokens 和 Context Size<br>📚 超长文档(32K) | 🚀 极限(128K) | 🔬 深度分析(24K) | ✍️ 创意写作(8K输出)
-                    </div>
+            <!-- ========== 2. 快速选择 API ========== -->
+            <div class="preset-api-selector">
+                <div class="preset-api-title">
+                    <span>⚡</span> 快速选择 API
                 </div>
+                <div class="preset-buttons" id="presetApiButtons">
+                    <button class="preset-btn" data-api="deepseek">🔥 DeepSeek 官方</button>
+                    <button class="preset-btn" data-api="zhipu">🚀 智谱GLM</button>
+                    <button class="preset-btn" data-api="lmstudio">🎯 LM Studio (本地)</button>
+                    <button class="preset-btn" data-api="ollama">🦙 Ollama (本地)</button>
+                    <button class="preset-btn" data-api="openai">🤖 OpenAI 官方</button>
+                    <button class="preset-btn" data-api="siliconflow">🧠 SiliconFlow</button>
+                    <button class="preset-btn" data-api="llama">🔧 llama.cpp (本地)</button>
+                    <button class="preset-btn" data-api="custom">✏️ 自定义</button>
+                </div>
+                <div class="api-key-hint" id="apiKeyHint">
+                    💡 提示：选择预设API后，只需填写对应的 API Key 即可使用
+                </div>
+                <div class="custom-api-row" id="customApiRow" style="display: none;">
+                    <input type="text" id="customApiUrl" placeholder="自定义 API 地址 (如: https://api.example.com/v1)">
+                    <button onclick="applyCustomApi()">应用</button>
+                </div>
+            </div>
 
-                <div class="voice-settings-panel" style="margin-top: 16px;">
-                    <h4>🔐 API Key 管理</h4>
-                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <span>💾 记住 API Key</span>
-                        <label class="switch" style="width: 40px; height: 20px;">
-                            <input type="checkbox" id="rememberApiKeySwitch" checked>
-                            <span class="slider" style="border-radius: 20px;"></span>
-                        </label>
-                    </label>
-                    <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px;">
-                        💡 开启后，API Key 将加密保存在浏览器中，下次打开自动填充
-                    </div>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button id="clearApiKeyBtn" class="kb-btn" style="background: var(--danger-color); color: white;">
-                            🗑️ 清除已保存的 API Key
-                        </button>
-                        <button id="exportApiKeyBtn" class="kb-btn" style="background: var(--primary-color);">
-                            📤 导出 API Key (备份)
-                        </button>
-                        <button id="importApiKeyBtn" class="kb-btn" style="background: var(--primary-color);">
-                            📥 导入 API Key (恢复)
-                        </button>
-                    </div>
-                    <div id="apiKeyStatus" style="margin-top: 12px; font-size: 11px; color: var(--text-secondary);"></div>
-                </div>
+            <!-- ========== 3. API 详细配置 ========== -->
+            <div class="api-detail-settings" style="margin-top: 20px; padding: 16px; background: var(--ai-msg-bg); border-radius: 16px; border: 1px solid var(--border-color);">
+                <div style="font-weight: 600; margin-bottom: 12px;">🔧 API 详细配置</div>
                 
-                <label style="display:block;margin-bottom:12px;">
+                <label style="display:block; margin-bottom: 12px;">
                     🔗 API地址: 
-                    <input type="text" id="apiUrl" value="https://api.deepseek.com/v1" style="width:100%;">
+                    <input type="text" id="apiUrl" value="https://api.deepseek.com/v1" style="width:100%; padding: 8px; margin-top: 4px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-color);">
                 </label>
                 
-                <label style="display:block;margin-bottom:12px;">
+                <label style="display:block; margin-bottom: 12px;">
                     🔑 API Key: 
-                    <input type="password" id="apiKey" placeholder="sk-... 或 xxx.yyy" style="width:100%;">
+                    <input type="password" id="apiKey" placeholder="sk-... 或 xxx.yyy" style="width:100%; padding: 8px; margin-top: 4px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-color);">
                     <span style="font-size:11px; color:var(--text-secondary);" id="apiKeyFormatHint">DeepSeek API Key 格式: sk-xxx</span>
                 </label>
                 
-                <label id="modelNameLabel" style="display:block;margin-bottom:12px;">
+                <label id="modelNameLabel" style="display:block; margin-bottom: 12px;">
                     🤖 模型名称: 
-                    <input type="text" id="modelName" value="deepseek-chat" style="width:100%;">
+                    <input type="text" id="modelName" value="deepseek-chat" style="width:100%; padding: 8px; margin-top: 4px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-color);">
                     <span style="font-size:11px; color:var(--text-secondary);" id="modelHint">deepseek-chat / deepseek-coder / gpt-4o-mini / glm-4-flash / local-model</span>
                 </label>
                 
-                <label style="display:block;margin-bottom:12px;">
-                    🌡️ Temperature: <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7" style="width:100%;"> 
-                    <span id="tempValue">0.7</span>
+                <div style="display: flex; gap: 8px; margin-top: 12px;">
+                    <button class="kb-btn" style="flex:1;" onclick="testConnection()">🔄 测试连接</button>
+                    <button class="kb-btn" style="flex:1; background: var(--primary-color);" onclick="showDeepSeekHelp()">🔑 获取帮助</button>
+                </div>
+            </div>
+
+            <!-- ========== 4. API Key 管理 ========== -->
+            <div class="voice-settings-panel" style="margin-top: 16px;">
+                <h4>🔐 API Key 管理</h4>
+                <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <span>💾 记住 API Key</span>
+                    <label class="switch" style="width: 40px; height: 20px;">
+                        <input type="checkbox" id="rememberApiKeySwitch" checked>
+                        <span class="slider" style="border-radius: 20px;"></span>
+                    </label>
                 </label>
-                <label style="display:block;margin-bottom:12px;">
-                    📏 Max Tokens: <input type="number" id="maxTokens" value="2048" min="64" max="4096" step="64" style="width:100%;">
+                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px;">
+                    💡 开启后，API Key 将加密保存在浏览器中，下次打开自动填充
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button id="clearApiKeyBtn" class="kb-btn" style="background: var(--danger-color); color: white;">🗑️ 清除已保存的 API Key</button>
+                    <button id="exportApiKeyBtn" class="kb-btn" style="background: var(--primary-color);">📤 导出 API Key (备份)</button>
+                    <button id="importApiKeyBtn" class="kb-btn" style="background: var(--primary-color);">📥 导入 API Key (恢复)</button>
+                </div>
+                <div id="apiKeyStatus" style="margin-top: 12px; font-size: 11px; color: var(--text-secondary);"></div>
+            </div>
+
+            <!-- ========== 5. 其他参数设置 ========== -->
+            <label style="display:block; margin-bottom:12px;">
+                🌡️ Temperature: <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7" style="width:100%;"> 
+                <span id="tempValue">0.7</span>
+            </label>
+            <label style="display:block; margin-bottom:12px;">
+                📏 Max Tokens: <input type="number" id="maxTokens" value="2048" min="64" max="4096" step="64" style="width:100%;">
+            </label>
+            <label style="display:block; margin-bottom:12px;">
+                🎯 Top P: <input type="range" id="topP" min="0" max="1" step="0.05" value="0.9" style="width:100%;"> 
+                <span id="topPValue">0.9</span>
+            </label>
+            <label style="display:block; margin-bottom:12px;">
+                📚 上下文长度: <input type="number" id="contextLimit" value="8192" min="1024" max="32768" step="1024" style="width:100%;">
+            </label>
+            
+            <!-- ========== 6. 记忆系统设置 ========== -->
+            <div class="voice-settings-panel" style="margin-top: 16px;">
+                <h4>🧠 记忆系统设置</h4>
+                <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span>🔥 热记忆保留数量</span>
+                    <input type="number" id="hotMemoryLimit" min="100" max="1000" step="50" value="500" style="width: 100px;">
                 </label>
-                <label style="display:block;margin-bottom:12px;">
-                    🎯 Top P: <input type="range" id="topP" min="0" max="1" step="0.05" value="0.9" style="width:100%;"> 
-                    <span id="topPValue">0.9</span>
+                <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span>🌡️ 温记忆保留数量</span>
+                    <input type="number" id="warmMemoryLimit" min="500" max="5000" step="100" value="2000" style="width: 100px;">
                 </label>
-                <label style="display:block;margin-bottom:12px;">
-                    📚 上下文长度: <input type="number" id="contextLimit" value="8192" min="1024" max="32768" step="1024" style="width:100%;">
+                <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span>⏰ 自动压缩间隔(分钟)</span>
+                    <input type="number" id="compressInterval" min="30" max="720" step="30" value="120" style="width: 100px;">
                 </label>
-                
-                <div class="voice-settings-panel" style="margin-top: 16px;"><h4>🧠 记忆系统设置</h4>
-                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span>🔥 热记忆保留数量</span><input type="number" id="hotMemoryLimit" min="100" max="1000" step="50" value="500" style="width: 100px;"></label>
-                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span>🌡️ 温记忆保留数量</span><input type="number" id="warmMemoryLimit" min="500" max="5000" step="100" value="2000" style="width: 100px;"></label>
-                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span>⏰ 自动压缩间隔(分钟)</span><input type="number" id="compressInterval" min="30" max="720" step="30" value="120" style="width: 100px;"></label>
-                    <div style="font-size: 11px; color: var(--text-secondary);">💡 记忆系统自动管理：高频使用的记忆保持为热记忆，低频记忆自动降级或压缩</div>
+                <div style="font-size: 11px; color: var(--text-secondary);">💡 记忆系统自动管理：高频使用的记忆保持为热记忆，低频记忆自动降级或压缩</div>
+            </div>
+            
+            <!-- ========== 7. 关联学习设置 ========== -->
+            <div class="voice-settings-panel" style="margin-top: 16px;">
+                <h4>🔗 关联学习设置</h4>
+                <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span>🎯 最小关联强度阈值</span>
+                    <input type="range" id="minAssociationStrength" min="0" max="0.5" step="0.01" value="0.1" style="width: 150px;">
+                    <span id="minStrengthValue">0.10</span>
+                </label>
+                <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span>📊 语义相似度权重</span>
+                    <input type="range" id="semanticWeight" min="0" max="0.8" step="0.05" value="0.4" style="width: 150px;">
+                    <span id="semanticWeightValue">0.40</span>
+                </label>
+                <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span>⏰ 时序关联权重</span>
+                    <input type="range" id="temporalWeight" min="0" max="0.5" step="0.05" value="0.2" style="width: 150px;">
+                    <span id="temporalWeightValue">0.20</span>
+                </label>
+                <div style="font-size: 11px; color: var(--text-secondary);">💡 关联学习使AI能够建立概念间的联系，实现联想记忆</div>
+            </div>
+            
+            <!-- ========== 8. 幻觉检测设置 ========== -->
+            <div class="voice-settings-panel" style="margin-top: 16px;">
+                <h4>🛡️ 幻觉检测设置</h4>
+                <label style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                    <span>🔍 启用幻觉检测后处理</span>
+                    <label class="switch" style="width: 40px; height: 20px;">
+                        <input type="checkbox" id="hallucinationCheckSwitch" checked>
+                        <span class="slider" style="border-radius: 20px;"></span>
+                    </label>
+                </label>
+                <div style="font-size: 11px; color: var(--text-secondary);">💡 开启后会自动检测AI回答中的不确定内容、添加引用标记、显示置信度</div>
+            </div>
+            
+            <!-- ========== 9. 语音播报设置 ========== -->
+            <div class="voice-settings-panel">
+                <h4>🎤 语音播报设置</h4>
+                <label style="display:block;margin-bottom:8px;">
+                    🗣️ 语音: <select id="voiceSelect" style="width:100%;padding:8px;border-radius:12px;"><option>加载中...</option></select>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                    ⚡ 语速: <input type="range" id="voiceRate" min="0.5" max="2" step="0.1" value="1.0" style="flex:1;"><span id="rateValue">1.0</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                    📢 音调: <input type="range" id="voicePitch" min="0.5" max="2" step="0.1" value="1.0" style="flex:1;"><span id="pitchValue">1.0</span>
+                </label>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="voice-test-btn" onclick="testVoice()">🔊 测试</button>
+                    <button class="voice-test-btn" onclick="stopSpeaking()" style="background:var(--border-color);color:var(--text-primary);">⏹️ 停止</button>
+                    <button class="voice-test-btn" id="autoSpeakBtn" onclick="toggleAutoSpeak()" style="background:var(--border-color);color:var(--text-primary);">🤖 自动播报: 关</button>
                 </div>
-                
-                <div class="voice-settings-panel" style="margin-top: 16px;"><h4>🔗 关联学习设置</h4>
-                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span>🎯 最小关联强度阈值</span><input type="range" id="minAssociationStrength" min="0" max="0.5" step="0.01" value="0.1" style="width: 150px;"><span id="minStrengthValue">0.10</span></label>
-                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span>📊 语义相似度权重</span><input type="range" id="semanticWeight" min="0" max="0.8" step="0.05" value="0.4" style="width: 150px;"><span id="semanticWeightValue">0.40</span></label>
-                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><span>⏰ 时序关联权重</span><input type="range" id="temporalWeight" min="0" max="0.5" step="0.05" value="0.2" style="width: 150px;"><span id="temporalWeightValue">0.20</span></label>
-                    <div style="font-size: 11px; color: var(--text-secondary);">💡 关联学习使AI能够建立概念间的联系，实现联想记忆</div>
+            </div>
+            
+            <!-- ========== 10. 对话压缩设置 ========== -->
+            <div id="compressionSettingsSection" style="margin-top: 16px; padding: 16px; background: var(--ai-msg-bg); border-radius: 16px;">
+                <h4>🗜️ 对话压缩设置 (本地模型 - all-MiniLM-L6-v2 + TextRank)</h4>
+                <div style="margin-bottom: 12px;">
+                    <label style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>📏 压缩阈值 (字符数)</span>
+                        <input type="number" id="compressThreshold" min="1000" max="10000" step="500" style="width: 100px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border-color);">
+                    </label>
                 </div>
-                
-                <div class="voice-settings-panel" style="margin-top: 16px;"><h4>🛡️ 幻觉检测设置</h4>
-                    <label style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;"><span>🔍 启用幻觉检测后处理</span><label class="switch" style="width: 40px; height: 20px;"><input type="checkbox" id="hallucinationCheckSwitch" checked><span class="slider" style="border-radius: 20px;"></span></label></label>
-                    <div style="font-size: 11px; color: var(--text-secondary);">💡 开启后会自动检测AI回答中的不确定内容、添加引用标记、显示置信度</div>
+                <div style="margin-bottom: 12px;">
+                    <label style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>💬 保留最近轮数</span>
+                        <input type="number" id="keepRecentRounds" min="1" max="6" step="1" style="width: 80px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border-color);">
+                    </label>
                 </div>
-                
-                <div class="voice-settings-panel"><h4>🎤 语音播报设置</h4>
-                    <label style="display:block;margin-bottom:8px;">🗣️ 语音: <select id="voiceSelect" style="width:100%;padding:8px;border-radius:12px;"><option>加载中...</option></select></label>
-                    <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">⚡ 语速: <input type="range" id="voiceRate" min="0.5" max="2" step="0.1" value="1.0" style="flex:1;"><span id="rateValue">1.0</span></label>
-                    <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">📢 音调: <input type="range" id="voicePitch" min="0.5" max="2" step="0.1" value="1.0" style="flex:1;"><span id="pitchValue">1.0</span></label>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;"><button class="voice-test-btn" onclick="testVoice()">🔊 测试</button><button class="voice-test-btn" onclick="stopSpeaking()" style="background:var(--border-color);color:var(--text-primary);">⏹️ 停止</button><button class="voice-test-btn" id="autoSpeakBtn" onclick="toggleAutoSpeak()" style="background:var(--border-color);color:var(--text-primary);">🤖 自动播报: 关</button></div>
+                <div style="font-size: 11px; color: var(--text-secondary);">
+                    💡 使用 all-MiniLM-L6-v2 语义模型 + TextRank 算法进行本地摘要，无需 API 调用，完全离线可用。
                 </div>
-                
-                <div class="api-help-row" id="apiHelpRow">
-                    <button id="apiHelpBtn" class="kb-btn" style="background: var(--primary-color);" onclick="showDeepSeekHelp()">
-                        🔑 获取 API Key 帮助
-                    </button>
-                    <button id="testApiBtn" class="kb-btn" onclick="testConnection()">
-                        🔄 测试连接
-                    </button>
+            </div>
+            
+            <!-- ========== 11. 自动记忆管理 ========== -->
+            <div id="autoMemorySection" class="auto-memory-settings" style="margin-top: 16px; padding: 16px; background: var(--ai-msg-bg); border-radius: 16px;">
+                <h4>🤖 自动记忆管理</h4>
+                <div style="margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>📁 文件系统模式</span>
+                        <span id="fsModeBadge" style="background: var(--primary-color); padding: 2px 8px; border-radius: 12px; font-size: 11px;">📦 本地存储</span>
+                    </div>
                 </div>
-                
-                <div class="dialog-buttons" style="margin-top: 20px;">
-                    <button class="kb-btn primary" style="flex:1;" onclick="saveSettings()">💾 保存</button>
-                    <button class="kb-btn" style="flex:1;" onclick="closeSettings()">❌ 取消</button>
+                <div style="margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>🔄 自动提炼长期记忆</span>
+                        <label class="switch"><input type="checkbox" id="autoRefineToggle" checked><span class="slider"></span></label>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">每48小时自动分析对话，提炼决策/教训/偏好</div>
                 </div>
+                <div style="margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>🔄 自动同步两套系统</span>
+                        <label class="switch"><input type="checkbox" id="autoSyncToggle" checked><span class="slider"></span></label>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">每30分钟自动同步文件记忆 ⇄ AI内部记忆</div>
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                    <button id="manualRefineBtn" class="kb-btn" style="flex: 1;">📝 立即提炼</button>
+                    <button id="manualSyncBtn" class="kb-btn" style="flex: 1;">🔄 立即同步</button>
+                    <button id="exportMemoriesBtn" class="kb-btn" style="flex: 1;">💾 导出备份</button>
+                </div>
+                <div id="autoMemoryStatus" style="font-size: 11px; color: var(--text-secondary);"></div>
+            </div>
+            
+            <!-- ========== 12. 专业编程模式 ========== -->
+            <div id="programmingModeSection" class="programming-mode-section" style="margin-top: 16px; padding: 16px; background: var(--ai-msg-bg); border-radius: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h4 style="margin: 0;">🔧 专业编程模式</h4>
+                    <label class="switch" style="width: 48px; height: 24px;">
+                        <input type="checkbox" id="programmingModeToggle">
+                        <span class="slider" style="border-radius: 24px;"></span>
+                    </label>
+                </div>
+                <div id="programmingModeSettings" style="display: none;">
+                    <div style="margin-bottom: 12px;">
+                        <label>📊 经验等级</label>
+                        <select id="modeLevelSelect" style="width: 100%; padding: 8px; border-radius: 8px;">
+                            <option value="beginner">🎓 入门模式</option>
+                            <option value="intermediate">📘 进阶模式</option>
+                            <option value="expert">🔧 专家模式</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label>🎨 代码风格</label>
+                        <select id="codeStyleSelect" style="width: 100%; padding: 8px; border-radius: 8px;">
+                            <option value="clean">✨ 清晰风格</option>
+                            <option value="detailed">📖 详细风格</option>
+                            <option value="minimal">⚡ 简洁风格</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dialog-buttons" style="margin-top: 20px;">
+                <button class="kb-btn primary" style="flex:1;" onclick="saveSettings()">💾 保存</button>
+                <button class="kb-btn" style="flex:1;" onclick="closeSettings()">❌ 取消</button>
             </div>
         </div>
     </div>
+</div>
 
     <div class="modal-overlay" id="tagManagerModal" onclick="if(event.target===this) closeTagManager()"><div class="modal-content" style="max-width: 650px;"><div class="modal-header"><h3>🏷️ 标签管理</h3><button class="icon-btn" onclick="closeTagManager()">✕</button></div><div class="modal-body"><div id="tagCloudContainer" style="margin-bottom: 16px;"></div><div style="margin-top: 16px;"><h4>📊 标签统计</h4><div id="tagStatsContainer" style="background: var(--ai-msg-bg); padding: 12px; border-radius: 12px;"></div></div></div><div class="modal-footer"><button class="kb-btn" onclick="closeTagManager()">关闭</button></div></div></div>
 
