@@ -2247,33 +2247,457 @@
         }
 
         // ==================== 修复后的 handleMultipleFilesUpload 函数 ====================
-        async function handleMultipleFilesUpload(files) {
-            if (!files) return;
-            
-            for (let f of files) {
-                try {
-                    let c = await (kbManager ? kbManager.parseFile(f) : Promise.resolve(''));
-                    if (c) {
-                        const existingIndex = currentAttachments.findIndex(a => a.name === f.name);
-                        if (existingIndex !== -1) {
-                            if (confirm(`文件 "${f.name}" 已存在，是否替换？`)) {
-                                currentAttachments[existingIndex] = { name: f.name, size: f.size, content: c };
-                                addDebugLog(`📎 已替换附件: ${f.name}`, 'info');
-                            }
-                        } else {
-                            currentAttachments.push({ name: f.name, size: f.size, content: c });
-                            addDebugLog(`📎 已添加附件: ${f.name}`, 'info');
+// ==================== 高性能附件解析器类 ====================
+class HighPerformanceAttachmentParser {
+    constructor() {
+        this.maxConcurrent = 3;
+        this.parsingAbortControllers = new Map();
+    }
+    
+    async parseFiles(files, onProgress, onComplete) {
+        const fileItems = Array.from(files).map((file, idx) => ({
+            id: `attachment_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 6)}`,
+            file: file,
+            name: file.name,
+            size: file.size,
+            extension: file.name.split('.').pop().toLowerCase(),
+            status: 'pending',
+            progress: 0,
+            startTime: null
+        }));
+        
+        if (onProgress) {
+            onProgress(fileItems.map(f => ({ ...f, status: 'pending', progress: 0 })));
+        }
+        
+        const results = [];
+        const runningTasks = new Map();
+        const pendingQueue = [...fileItems];
+        
+        return new Promise((resolve) => {
+            const processNext = async () => {
+                if (pendingQueue.length === 0 && runningTasks.size === 0) {
+                    resolve(results);
+                    if (onComplete) onComplete(results);
+                    return;
+                }
+                
+                while (runningTasks.size < this.maxConcurrent && pendingQueue.length > 0) {
+                    const item = pendingQueue.shift();
+                    const task = this.parseSingleFile(item, (progress, status) => {
+                        item.progress = progress;
+                        item.status = status;
+                        if (onProgress) {
+                            const allItems = [...runningTasks.values(), ...pendingQueue, item].map(t => ({
+                                id: t.id,
+                                name: t.name,
+                                size: t.size,
+                                status: t.status,
+                                progress: t.progress || 0
+                            }));
+                            onProgress(allItems);
                         }
+                    });
+                    
+                    runningTasks.set(item.id, task);
+                    task.then((result) => {
+                        runningTasks.delete(item.id);
+                        results.push(result);
+                        processNext();
+                    }).catch((error) => {
+                        runningTasks.delete(item.id);
+                        results.push({
+                            success: false,
+                            id: item.id,
+                            name: item.name,
+                            size: item.size,
+                            error: error.message
+                        });
+                        processNext();
+                    });
+                }
+            };
+            
+            processNext();
+        });
+    }
+    
+    async parseSingleFile(item, onProgress) {
+        const startTime = Date.now();
+        item.startTime = startTime;
+        
+        const abortController = new AbortController();
+        this.parsingAbortControllers.set(item.id, abortController);
+        
+        try {
+            onProgress(5, 'parsing');
+            
+            if (item.size < 1024 * 100) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            
+            onProgress(15, 'parsing');
+            
+            let content = '';
+            const ext = item.extension;
+            
+            if (['txt', 'md', 'json', 'js', 'py', 'html', 'css', 'xml', 'yaml', 'yml'].includes(ext)) {
+                content = await this.parseTextFile(item.file, onProgress);
+            } else if (ext === 'pdf') {
+                content = await this.parsePDFOptimized(item.file, onProgress);
+            } else if (ext === 'docx') {
+                content = await this.parseDOCX(item.file, onProgress);
+            } else if (['xlsx', 'xls'].includes(ext)) {
+                content = await this.parseExcel(item.file, onProgress);
+            } else if (['png', 'jpg', 'jpeg', 'bmp', 'gif'].includes(ext)) {
+                content = await this.parseImageOptimized(item.file, onProgress);
+            } else {
+                content = await (kbManager ? kbManager.parseFile(item.file) : '');
+                onProgress(90, 'parsing');
+            }
+            
+            if (!content || content.trim().length === 0) {
+                throw new Error('文件内容为空');
+            }
+            
+            onProgress(100, 'success');
+            
+            const parseTime = Date.now() - startTime;
+            addDebugLog(`📎 解析完成: ${item.name} (${parseTime}ms, ${(content.length / 1024).toFixed(1)}KB)`, 'success');
+            
+            return {
+                success: true,
+                id: item.id,
+                name: item.name,
+                size: item.size,
+                content: content,
+                parseTime: parseTime
+            };
+            
+        } catch (error) {
+            const parseTime = Date.now() - startTime;
+            addDebugLog(`❌ 解析失败: ${item.name} - ${error.message} (${parseTime}ms)`, 'error');
+            
+            return {
+                success: false,
+                id: item.id,
+                name: item.name,
+                size: item.size,
+                error: error.message,
+                parseTime: parseTime
+            };
+        } finally {
+            this.parsingAbortControllers.delete(item.id);
+        }
+    }
+    
+    parseTextFile(file, onProgress) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                onProgress(80, 'parsing');
+                resolve(e.target.result);
+            };
+            reader.onerror = () => reject(new Error('文件读取失败'));
+            reader.readAsText(file, 'UTF-8');
+        });
+    }
+    
+    async parsePDFOptimized(file, onProgress) {
+        onProgress(20, 'parsing');
+        const arrayBuffer = await file.arrayBuffer();
+        onProgress(40, 'parsing');
+        
+        const pdf = await pdfjsLib.getDocument({ 
+            data: arrayBuffer,
+            useSystemFonts: true,
+            disableRange: true,
+            disableStream: true
+        }).promise;
+        
+        const totalPages = Math.min(pdf.numPages, 50);
+        let text = '';
+        
+        for (let i = 1; i <= totalPages; i++) {
+            if (i % 3 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(item => item.str).join(' ') + '\n\n';
+            
+            const progress = 40 + (i / totalPages) * 55;
+            onProgress(progress, 'parsing');
+            
+            if (text.length > 500000) {
+                text += `\n... (已截断，PDF共${totalPages}页，仅显示前${i}页)`;
+                break;
+            }
+        }
+        
+        onProgress(95, 'parsing');
+        return text;
+    }
+    
+    async parseDOCX(file, onProgress) {
+        onProgress(30, 'parsing');
+        const arrayBuffer = await file.arrayBuffer();
+        onProgress(60, 'parsing');
+        
+        try {
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            onProgress(90, 'parsing');
+            return result.value;
+        } catch (e) {
+            throw new Error('DOCX解析失败，请尝试保存为TXT格式');
+        }
+    }
+    
+    async parseExcel(file, onProgress) {
+        onProgress(30, 'parsing');
+        const arrayBuffer = await file.arrayBuffer();
+        onProgress(60, 'parsing');
+        
+        const workbook = XLSX.read(arrayBuffer, { cellText: false, cellDates: false });
+        let text = '';
+        const sheetsToProcess = Math.min(workbook.SheetNames.length, 5);
+        
+        for (let idx = 0; idx < sheetsToProcess; idx++) {
+            const sheetName = workbook.SheetNames[idx];
+            const sheet = workbook.Sheets[sheetName];
+            const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            
+            text += `\n【工作表: ${sheetName}】\n`;
+            const rowsToProcess = Math.min(data.length, 200);
+            for (let rowIdx = 0; rowIdx < rowsToProcess; rowIdx++) {
+                text += (data[rowIdx] || []).filter(cell => cell).join(' ') + '\n';
+            }
+            
+            const progress = 60 + (idx / sheetsToProcess) * 35;
+            onProgress(progress, 'parsing');
+        }
+        
+        onProgress(95, 'parsing');
+        return text;
+    }
+    
+    async parseImageOptimized(file, onProgress) {
+        onProgress(30, 'parsing');
+        const url = URL.createObjectURL(file);
+        
+        try {
+            const result = await Tesseract.recognize(url, 'chi_sim+eng', {
+                logger: (m) => {
+                    if (m.status === 'recognizing text') {
+                        const progress = 30 + m.progress * 65;
+                        onProgress(progress, 'parsing');
                     }
-                } catch (e) { 
-                    showToast(`解析失败: ${f.name}`); 
-                    addDebugLog(`❌ 解析失败: ${f.name} - ${e.message}`, 'error');
+                },
+                tessedit_pageseg_mode: 6
+            });
+            
+            onProgress(95, 'parsing');
+            return result.data.text;
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    }
+    
+    abortAll() {
+        for (const [id, controller] of this.parsingAbortControllers) {
+            controller.abort();
+        }
+        this.parsingAbortControllers.clear();
+    }
+}
+
+// 创建全局解析器实例
+const attachmentParser = new HighPerformanceAttachmentParser();
+
+// ==================== 修复后的 handleMultipleFilesUpload ====================
+async function handleMultipleFilesUpload(files) {
+    if (!files || files.length === 0) return;
+    
+    attachmentParser.abortAll();
+    
+    const tempAttachments = Array.from(files).map(f => ({
+        id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        name: f.name,
+        size: f.size,
+        content: null,
+        isParsing: true,
+        progress: 0,
+        status: 'pending'
+    }));
+    
+    currentAttachments = tempAttachments;
+    refreshAttachmentsUI();
+    updateSendButtonState();
+    
+    const progressContainer = document.getElementById('kbProgressContainer');
+    const progressBar = document.getElementById('kbProgressBar');
+    const progressText = document.getElementById('kbProgressText');
+    
+    if (progressContainer) progressContainer.style.display = 'block';
+    if (progressBar) progressBar.style.width = '0%';
+    if (progressText) progressText.textContent = `准备解析 ${files.length} 个文件...`;
+    
+    showToast(`📎 正在解析 ${files.length} 个文件...`);
+    
+    const parseStartTime = performance.now();
+    
+    const results = await attachmentParser.parseFiles(
+        files,
+        (progressItems) => {
+            for (const item of progressItems) {
+                const tempAtt = currentAttachments.find(a => a.name === item.name);
+                if (tempAtt) {
+                    tempAtt.progress = item.progress || 0;
+                    tempAtt.status = item.status;
+                    tempAtt.isParsing = item.status === 'parsing' || item.status === 'pending';
                 }
             }
-            refreshAttachmentsUI(); 
-            updateSendButtonState(); 
-            showToast(`已添加 ${currentAttachments.length} 个附件`);
+            refreshAttachmentsUI();
+            
+            const avgProgress = progressItems.reduce((sum, item) => sum + (item.progress || 0), 0) / Math.max(progressItems.length, 1);
+            if (progressBar) progressBar.style.width = `${avgProgress}%`;
+            if (progressText) {
+                const completedCount = progressItems.filter(i => i.status === 'success' || i.status === 'error').length;
+                progressText.textContent = `解析中... ${completedCount}/${progressItems.length} 完成`;
+            }
+        },
+        (finalResults) => {
+            const parseEndTime = performance.now();
+            addDebugLog(`📊 附件解析完成: 总耗时 ${(parseEndTime - parseStartTime).toFixed(0)}ms`, 'success');
+            
+            if (progressContainer) progressContainer.style.display = 'none';
+            
+            const successful = finalResults.filter(r => r.success);
+            const failed = finalResults.filter(r => !r.success);
+            
+            if (successful.length === 0) {
+                currentAttachments = [];
+                showToast(`❌ 所有文件解析失败`);
+            } else {
+                currentAttachments = successful.map(r => ({
+                    name: r.name,
+                    size: r.size,
+                    content: r.content
+                }));
+                
+                const totalTime = (parseEndTime - parseStartTime) / 1000;
+                if (failed.length > 0) {
+                    showToast(`✅ 成功 ${successful.length} 个，❌ 失败 ${failed.length} 个 (${totalTime.toFixed(1)}秒)`);
+                    addDebugLog(`⚠️ 部分附件失败: ${failed.map(f => `${f.name}(${f.error})`).join(', ')}`, 'warning');
+                } else {
+                    showToast(`✅ 已添加 ${successful.length} 个附件 (${totalTime.toFixed(1)}秒)`);
+                }
+            }
+            
+            refreshAttachmentsUI();
+            updateSendButtonState();
+            
+            if (failed.length > 0 && successful.length > 0) {
+                setTimeout(() => {
+                    const failDetails = failed.map(f => `• ${f.name}: ${f.error}`).join('\n');
+                    const warningMsg = `⚠️ **部分文件解析失败**\n\n以下文件未能成功解析：\n${failDetails}\n\n💡 建议：\n• 检查文件格式是否正确\n• 尝试保存为纯文本格式\n• PDF文件请确保未加密`;
+                    
+                    if (typeof appendMessageDOM === 'function') {
+                        appendMessageDOM('kb', warningMsg);
+                    }
+                }, 500);
+            }
         }
+    );
+}
+
+// ==================== 增强版 refreshAttachmentsUI ====================
+function refreshAttachmentsUI() { 
+    const man = document.getElementById('attachmentsManager'); 
+    const list = document.getElementById('attachmentsList'); 
+    const cnt = document.getElementById('attachCount'); 
+    
+    const validAttachments = currentAttachments.filter(a => a && (a.content !== null || a.isParsing === true));
+    
+    if (!validAttachments.length) { 
+        if (man) man.style.display = 'none'; 
+        return; 
+    } 
+    
+    if (man) man.style.display = 'block'; 
+    if (cnt) cnt.innerText = validAttachments.length; 
+    
+    if (list) {
+        list.innerHTML = validAttachments.map((a, idx) => {
+            const actualIndex = currentAttachments.findIndex(item => item === a);
+            
+            let statusHtml = '';
+            let progressHtml = '';
+            
+            if (a.isParsing || a.status === 'parsing' || a.status === 'pending') {
+                const progress = a.progress || 0;
+                statusHtml = `<span class="attachment-status parsing" style="color: var(--text-secondary); font-size: 10px;">
+                    ⏳ 解析中 ${progress}%
+                </span>`;
+                progressHtml = `<div style="width: 40px; height: 2px; background: var(--border-color); border-radius: 2px; overflow: hidden; margin-left: 4px;">
+                    <div style="width: ${progress}%; height: 100%; background: var(--primary-color); transition: width 0.1s;"></div>
+                </div>`;
+            } else if (a.error) {
+                statusHtml = `<span class="attachment-status error" style="color: var(--danger-color); font-size: 10px;">
+                    ❌ ${a.error}
+                </span>`;
+            } else if (a.content) {
+                const sizeKB = (a.size / 1024).toFixed(1);
+                statusHtml = `<span class="attachment-status success" style="color: var(--success-color); font-size: 10px;">
+                    ✅ 就绪 (${sizeKB}KB)
+                </span>`;
+            }
+            
+            return `<div class="attachment-item" data-index="${actualIndex}">
+                        <span>📄</span>
+                        <span title="${escapeHtml(a.name)}">${escapeHtml(a.name.length > 20 ? a.name.substring(0, 18) + '...' : a.name)}</span>
+                        ${statusHtml}
+                        ${progressHtml}
+                        <button class="attachment-remove" onclick="removeAttachment(${actualIndex})" ${a.isParsing ? 'disabled style="opacity:0.5;"' : ''}>✕</button>
+                    </div>`;
+        }).join('');
+    }
+}
+
+// ==================== 增强版 removeAttachment ====================
+function removeAttachment(index) { 
+    if (index >= 0 && index < currentAttachments.length) {
+        const attachment = currentAttachments[index];
+        if (attachment && attachment.isParsing) {
+            attachment.cancelled = true;
+            showToast(`已取消解析: ${attachment.name}`);
+        }
+        currentAttachments.splice(index, 1);
+        refreshAttachmentsUI(); 
+        updateSendButtonState();
+        
+        if (currentAttachments.length === 0) {
+            const progressContainer = document.getElementById('kbProgressContainer');
+            if (progressContainer) progressContainer.style.display = 'none';
+        }
+    }
+}
+
+// ==================== 增强版 clearAllAttachments ====================
+function clearAllAttachments() { 
+    if (currentAttachments.length && confirm('清空所有附件？')) {
+        attachmentParser.abortAll();
+        currentAttachments = []; 
+        refreshAttachmentsUI(); 
+        updateSendButtonState();
+        
+        const progressContainer = document.getElementById('kbProgressContainer');
+        if (progressContainer) progressContainer.style.display = 'none';
+        
+        showToast('已清空所有附件');
+    } 
+}
 
         // ==================== 全局变量定义 ====================
         let kbEnabled = localStorage.getItem('kb_enabled') !== null ? 
@@ -11358,10 +11782,7 @@ ${citationExamples}
         function speakMessage(btn) { const msgDiv = btn.closest('.message'); const raw = msgDiv?.querySelector('.content')?.getAttribute('data-raw-text'); if (raw) speechManager.speak(raw); }
         
         // handleMultipleFilesUpload 已在上面修复
-        
-        function refreshAttachmentsUI() { let man = document.getElementById('attachmentsManager'); let list = document.getElementById('attachmentsList'); let cnt = document.getElementById('attachCount'); if (!currentAttachments.length) { if (man) man.style.display = 'none'; return; } if (man) man.style.display = 'block'; if (cnt) cnt.innerText = currentAttachments.length; if (list) list.innerHTML = currentAttachments.map((a, i) => `<div class="attachment-item"><span>📄</span><span>${escapeHtml(a.name.substring(0, 20))}</span><button class="attachment-remove" onclick="removeAttachment(${i})">✕</button></div>`).join(''); }
-        function removeAttachment(i) { currentAttachments.splice(i, 1); refreshAttachmentsUI(); updateSendButtonState(); }
-        function clearAllAttachments() { if (currentAttachments.length && confirm('清空所有附件？')) { currentAttachments = []; refreshAttachmentsUI(); updateSendButtonState(); } }
+      
         function autoResize(ta) { if (ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 80) + 'px'; updateSendButtonState(); } }
         function handleEnter(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
         
