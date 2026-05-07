@@ -3801,7 +3801,7 @@ function clearAllAttachments() {
                     if (daysSince < 7) boost += 0.05;
                 }
 
-                return { ...result, score: result.score + boost };
+                return { ...result, score: Math.min(result.score + boost, 10) };
             }).sort((a, b) => b.score - a.score);
         }
 
@@ -3994,7 +3994,7 @@ function clearAllAttachments() {
                 ctx = `📚 【知识库检索结果】\n`;
                 for (let i = 0; i < filteredResults.length; i++) {
                     let r = filteredResults[i];
-                    ctx += `\n[${i+1}] 来自《${r.fileName}》 (相关度: ${(r.score*100).toFixed(1)}%):\n${r.text.substring(0, 500)}${r.text.length > 500 ? '...' : ''}\n`;
+                    ctx += `\n[${i+1}] 来自《${r.fileName}》 (相关度: ${(Math.min(r.score,1)*100).toFixed(1)}%):\n${r.text.substring(0, 500)}${r.text.length > 500 ? '...' : ''}\n`;
                 }
 
                 if (memoryCtx) {
@@ -6933,7 +6933,8 @@ if (messageCache.has(content)) {
         let conversationCompressor = null;
 
         async function initLocalCompressor() {
-            window.conversationCompressor = new LocalConversationCompressor();
+            conversationCompressor = new LocalConversationCompressor();
+            window.conversationCompressor = conversationCompressor;
 
             const savedThreshold = localStorage.getItem('compress_threshold');
             const savedRounds = localStorage.getItem('keep_recent_rounds');
@@ -6956,6 +6957,10 @@ if (messageCache.has(content)) {
         }
 
         async function manuallyCompressCurrentChat() {
+            if (!window.conversationCompressor) {
+                showToast('压缩器尚未初始化,请稍后重试');
+                return;
+            }
             let chat = chats.find(c => c.id === currentChatId);
             if (!chat) {
                 showToast('没有选中的对话');
@@ -6999,6 +7004,10 @@ if (messageCache.has(content)) {
         }
 
         function showCompressionInfo() {
+            if (!window.conversationCompressor) {
+                showToast('压缩器尚未初始化,请稍后重试');
+                return;
+            }
             let chat = chats.find(c => c.id === currentChatId);
             if (!chat) {
                 showToast('没有选中的对话');
@@ -10040,7 +10049,7 @@ setTimeout(async () => {
                     };
                 }
                 let processedResponse = this.autoAddMissingCitations(response, ragResults);
-                const avgScore = ragResults.reduce((s, r) => s + (r.score || 0.5), 0) / ragResults.length;
+                const avgScore = Math.min(ragResults.reduce((s, r) => s + Math.min(r.score || 0.5, 1), 0) / ragResults.length, 1);
                 let boundaryNote = '', confidence = 0.5, boundaryType = '';
                 if (avgScore > 0.4) {
                     boundaryNote = `✅ **基于知识库回答** (相关度: ${(avgScore*100).toFixed(0)}%)`;
@@ -10055,13 +10064,22 @@ setTimeout(async () => {
                     confidence = 0.35;
                     boundaryType = 'low_confidence';
                 }
-                const sources = ragResults.slice(0, 5).map((r, i) => {
+                // 按 fileName 去重
+                const seenFiles = new Set();
+                let srcIdx = 0;
+                const sources = [];
+                for (const r of ragResults) {
                     const fileName = r.fileName || '未知来源';
+                    if (seenFiles.has(fileName)) continue;
+                    seenFiles.add(fileName);
+                    srcIdx++;
                     const shortName = fileName.length > 30 ? fileName.substring(0, 27) + '...' : fileName;
-                    return `[${i+1}] ${shortName}`;
-                }).join(' | ');
+                    sources.push(`[${srcIdx}] ${shortName}`);
+                    if (sources.length >= 5) break;
+                }
+                const sourceStr = sources.join(' | ');
                 return {
-                    finalResponse: `${boundaryNote}\n\n${processedResponse}\n\n---\n📌 **引用来源**: ${sources}`,
+                    finalResponse: `${boundaryNote}\n\n${processedResponse}\n\n---\n📌 **引用来源**: ${sourceStr}`,
                     confidence: confidence,
                     boundaryType: boundaryType
                 };
@@ -10078,11 +10096,8 @@ setTimeout(async () => {
             }
 
             autoAddMissingCitations(response, ragResults) {
-                if (!ragResults || ragResults.length === 0) return response;
-                const hasAnyCitation = /\[来源\s*\d+\]/i.test(response);
-                if (hasAnyCitation) return response;
-                const sourceList = ragResults.slice(0, 3).map((r, i) => `[来源${i+1}] ${r.fileName || '文档'}`).join('; ');
-                return `${response}\n\n---\n📌 **参考资料**:${sourceList}`;
+                // 引用来源统一由 addKnowledgeBoundary 处理，此处仅返回原始回答
+                return response;
             }
 
             detectUncertainty(response) {
@@ -11484,16 +11499,40 @@ ${citationExamples}
             }
         }
 
+        // ==================== 可靠的异步等待工具 ====================
+        function waitFor(conditionFn, timeoutMs = 5000, pollIntervalMs = 100) {
+            return new Promise((resolve, reject) => {
+                const startTime = Date.now();
+                const check = () => {
+                    try {
+                        if (conditionFn()) {
+                            resolve(true);
+                            return;
+                        }
+                    } catch (e) { /* condition threw, retry */ }
+                    if (Date.now() - startTime >= timeoutMs) {
+                        reject(new Error('等待超时 (' + timeoutMs + 'ms)'));
+                        return;
+                    }
+                    setTimeout(check, pollIntervalMs);
+                };
+                check();
+            });
+        }
+
         // ==================== 记忆系统初始化 ====================
         async function initMemorySystem() {
             if (!kbManager || !kbManager.engine || !kbManager.engine.store) {
                 addDebugLog('⏳ 等待知识库初始化...', 'info');
-                for (let i = 0; i < 50; i++) {
-                    await new Promise(r => setTimeout(r, 100));
-                    if (kbManager && kbManager.engine && kbManager.engine.store) break;
-                }
-                if (!kbManager || !kbManager.engine || !kbManager.engine.store) {
-                    addDebugLog('❌ 知识库初始化超时,记忆系统无法启动', 'error');
+                try {
+                    await waitFor(
+                        () => kbManager && kbManager.engine && kbManager.engine.store,
+                        5000,
+                        100
+                    );
+                    addDebugLog('✅ 知识库已就绪', 'success');
+                } catch (e) {
+                    addDebugLog('❌ 知识库初始化超时 (' + e.message + '), 记忆系统无法启动', 'error');
                     return;
                 }
             }
@@ -13976,7 +14015,7 @@ class AdaptedMetacognitiveEngine {
             const stats = await this.adapter.getSystemStats();
             const memories = await this.adapter.getExistingMemories();
 
-            const metrics = this.calculateMetrics(memories, stats);
+            const metrics = await this.calculateMetrics(memories, stats);
             this.updateCognitiveState(metrics);
 
             this.performanceHistory.push({
@@ -13998,7 +14037,7 @@ class AdaptedMetacognitiveEngine {
         }
     }
 
-    calculateMetrics(memories, stats) {
+    async calculateMetrics(memories, stats) {
         if (!memories.length) {
             return { diversity: 0, coherence: 0, vitality: 0 };
         }
@@ -14008,7 +14047,7 @@ class AdaptedMetacognitiveEngine {
         const variance = importanceValues.reduce((a,b) => a + Math.pow(b - avgImportance, 2), 0) / importanceValues.length;
         const diversity = Math.min(variance * 4, 1);
 
-        const associations = this.adapter.getExistingAssociations();
+        const associations = await this.adapter.getExistingAssociations();
         const coherence = memories.length > 0 ?
             Math.min(associations.length / memories.length / 2, 1) : 0;
 
@@ -14444,7 +14483,14 @@ updateCognitiveIndicator() {
     async showEvolutionStatus() {
         if (!this.metacognition) return;
 
-        const state = this.metacognition.getCurrentState();
+        const rawState = this.metacognition.getCurrentState();
+        // NaN 防护：确保所有认知值均为有效数字
+        const state = {
+            confidence: (typeof rawState.confidence === 'number' && !isNaN(rawState.confidence)) ? rawState.confidence : 0.5,
+            curiosity: (typeof rawState.curiosity === 'number' && !isNaN(rawState.curiosity)) ? rawState.curiosity : 0.3,
+            exploration: (typeof rawState.exploration === 'number' && !isNaN(rawState.exploration)) ? rawState.exploration : 0.2,
+            stability: (typeof rawState.stability === 'number' && !isNaN(rawState.stability)) ? rawState.stability : 0.7
+        };
         const improvements = this.selfImprovement.getImprovementStats();
         const learningCount = this.activeLearning.getPendingLearningCount();
         const stats = await this.adapter.getSystemStats();
@@ -16112,523 +16158,559 @@ console.log('📸 多模态模块已加载 - 点击顶部按钮开关视觉模�
 
 
 <script>
-// ====== PHASE 6: MemoryBridge - 记忆系统增强联动 ======
-class MemoryBridge {
+// ====== PHASE 6: RobustMemoryBridge - 记忆系统增强联动 v2 ======
+class RobustMemoryBridge {
     constructor() {
-        // 1. 层级映射: MemoryManager ↔ UltimateMemorySystem
-        this.tierToLayer = {
-            hot: 'longTerm',
-            warm: 'shortTerm',
-            cold: 'ephemeral'
-        };
-        this.layerToTier = {
-            longTerm: 'hot',
-            shortTerm: 'warm',
-            ephemeral: 'cold'
-        };
+        // 层级映射
+        this.tierToLayer = { hot: 'longTerm', warm: 'shortTerm', cold: 'ephemeral' };
+        this.layerToTier = { longTerm: 'hot', shortTerm: 'warm', ephemeral: 'cold' };
 
-        // 2. 去重指纹库
+        // 去重指纹库
         this.fingerprints = new Map();
         this.dedupEnabled = true;
 
-        // 3. 元认知驱动参数
-        this.metaParams = {
-            baseImportanceThreshold: 0.2,
-            explorationBonus: 0.0,
-            curiosityWeight: 0.0,
-            confidenceScale: 1.0,
-            stabilityDecay: 1.0,
-            lastUpdate: 0
+        // 同步统计
+        this.syncStats = { mmToUms: 0, umsToMm: 0, skipped: 0, errors: 0 };
+        this.syncEnabled = true;
+
+        // 依赖状态追踪
+        this.dependencies = {
+            ultimateMemorySystem: { ready: false, instance: null, retries: 0 },
+            memoryImportance: { ready: false, instance: null, retries: 0 },
+            memoryManager: { ready: false, instance: null, retries: 0 },
+            kbManager: { ready: false, instance: null, retries: 0 },
+            cognitiveEnhancer: { ready: false, instance: null, retries: 0 }
         };
 
-        // 4. 跨对话记忆
-        this.conversations = new Map();
-        this.currentConversationId = 'default';
-        this.globalSharedPool = new Set();
-        this.crossConversationEnabled = true;
+        // 配置
+        this.config = {
+            maxRetries: 30,
+            retryInterval: 500,
+            healthCheckInterval: 30000,
+            autoRepair: true
+        };
 
-        // 5. 反馈状态
-        this.feedbackStats = { totalPositive: 0, totalNegative: 0, lastFeedback: null };
-
-        // 6. 同步状态
-        this.syncEnabled = true;
-        this.syncStats = { mmToUms: 0, umsToMm: 0, skipped: 0 };
         this.initialized = false;
+        this.healthCheckId = null;
+        this.eventListeners = new Map();
+        this.pendingSyncs = [];
+        this.feedbackStats = { positive: 0, negative: 0 };
     }
 
-    // ====== 初始化: 包装关键方法 ======
-    init() {
-        if (this.initialized) return;
+    // ========== 1. 核心：健壮的依赖等待 ==========
+    async waitForDependency(name, getter, timeout = 15000) {
+        const startTime = Date.now();
+        const dep = this.dependencies[name];
 
-        // 包装 autoExtractMemories (UMS → MemoryManager 同步)
-        if (window.ultimateMemorySystem) {
-            this._wrapAutoExtractMemories();
+        while (Date.now() - startTime < timeout) {
+            try {
+                const instance = typeof getter === 'function' ? getter() : window[name];
+                if (instance && this.isInstanceValid(instance, name)) {
+                    dep.ready = true;
+                    dep.instance = instance;
+                    dep.lastValid = Date.now();
+                    this.addDebugLog(`✅ 依赖 ${name} 已就绪 (${Date.now() - startTime}ms)`, 'success');
+                    return instance;
+                }
+            } catch(e) {
+                this.addDebugLog(`⚠️ 检查 ${name} 时出错: ${e.message}`, 'warning');
+            }
+
+            dep.retries++;
+            await this.sleep(this.config.retryInterval);
         }
 
-        // 包装 syncToInternalMemory (MemoryManager → UMS 同步)
-        if (window.memoryImportance) {
-            this._wrapSyncToInternalMemory();
+        this.addDebugLog(`❌ 依赖 ${name} 超时未就绪 (${timeout}ms)`, 'error');
+        return null;
+    }
+
+    isInstanceValid(instance, name) {
+        if (!instance) return false;
+
+        switch(name) {
+            case 'ultimateMemorySystem':
+                return typeof instance.autoExtractMemories === 'function' && instance.layers;
+            case 'memoryImportance':
+                return typeof instance.recordAccess === 'function';
+            case 'memoryManager':
+                return typeof instance.remember === 'function';
+            case 'kbManager':
+                return instance.isInitialized === true;
+            case 'cognitiveEnhancer':
+                return instance && instance.metacognition;
+            default:
+                return true;
         }
+    }
 
-        // 包装 addFeedback (反馈闭环)
-        this._wrapAddFeedback();
+    sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-        // 包装 updateCognitiveState (元认知驱动)
-        this._wrapUpdateCognitiveState();
+    // ========== 2. 增强的初始化 ==========
+    async init() {
+        if (this.initialized) return this;
 
-        // 初始化对话系统
-        this._loadConversations();
+        this.addDebugLog('🔗 MemoryBridge 开始初始化...', 'info');
+        const startTime = performance.now();
+
+        // 并行等待所有依赖（不阻塞，各自超时）
+        const results = await Promise.allSettled([
+            this.waitForDependency('ultimateMemorySystem', () => window.ultimateMemorySystem, 15000),
+            this.waitForDependency('memoryImportance', () => window.memoryImportance, 12000),
+            this.waitForDependency('memoryManager', () => window.memoryManager, 10000),
+            this.waitForDependency('kbManager', () => window.kbManager, 10000),
+            this.waitForDependency('cognitiveEnhancer', () => window.cognitiveEnhancer, 8000)
+        ]);
+
+        // 统计就绪数量
+        const readyCount = Object.values(this.dependencies).filter(d => d.ready).length;
+        this.addDebugLog(`📊 依赖就绪: ${readyCount}/5 (耗时 ${(performance.now()-startTime).toFixed(0)}ms)`,
+            readyCount >= 3 ? 'success' : 'warning');
+
+        // 即使部分依赖缺失，也尝试初始化（降级模式）
+        await this.initializeWithAvailableDeps();
+
+        // 启动健康检查
+        this.startHealthCheck();
 
         this.initialized = true;
-        if (typeof addDebugLog === 'function') {
-            addDebugLog('🔗 MemoryBridge 已启动 | 双向同步 | 层级映射 | 去重 | 元认知驱动 | 跨对话', 'success');
-        }
-        console.log('MemoryBridge initialized:', this.syncStats);
+        this.addDebugLog(`🔗 MemoryBridge 已初始化 (模式: ${readyCount >= 3 ? '完整' : '降级'})`,
+            readyCount >= 3 ? 'success' : 'warning');
+
+        return this;
     }
 
-    // ====== 1. 双向同步: UMS → MemoryManager ======
-    _wrapAutoExtractMemories() {
-        const ums = window.ultimateMemorySystem;
+    async initializeWithAvailableDeps() {
+        // 1. 包装 autoExtractMemories (如果可用)
+        if (this.dependencies.ultimateMemorySystem.ready) {
+            this.wrapAutoExtractMemories();
+        } else {
+            this.addDebugLog('⚠️ UltimateMemorySystem 不可用，跳过 UMS→MM 同步', 'warning');
+            this.installFallbackMemoryExtractor();
+        }
+
+        // 2. 包装 MemoryManager (如果可用)
+        if (this.dependencies.memoryImportance.ready || this.dependencies.memoryManager.ready) {
+            this.wrapMemoryManagerSync();
+        } else {
+            this.addDebugLog('⚠️ MemoryManager 不可用，跳过 MM→UMS 同步', 'warning');
+        }
+
+        // 3. 包装反馈系统
+        this.wrapFeedbackSystem();
+
+        // 4. 加载对话记录
+        this.loadConversations();
+
+        // 5. 处理待处理的同步队列
+        await this.processPendingSyncs();
+    }
+
+    // ========== 3. 带降级的包装函数 ==========
+    wrapAutoExtractMemories() {
+        const ums = this.dependencies.ultimateMemorySystem.instance;
+        if (!ums || typeof ums.autoExtractMemories !== 'function') return;
+
         const orig = ums.autoExtractMemories.bind(ums);
         const bridge = this;
 
         ums.autoExtractMemories = async function(userMessage, aiResponse) {
-            const results = await orig(userMessage, aiResponse);
+            let results = [];
+            try {
+                results = await orig(userMessage, aiResponse);
+            } catch(e) {
+                bridge.addDebugLog(`UMS autoExtractMemories 失败: ${e.message}`, 'error');
+                bridge.syncStats.errors++;
+                return [];
+            }
 
             if (!bridge.syncEnabled || !results.length) return results;
 
-            for (const mem of results) {
-                // 去重检查
-                const fp = bridge.fingerprint(mem.content);
-                if (bridge.dedupEnabled && bridge.fingerprints.has(fp)) {
-                    bridge.syncStats.skipped++;
-                    continue;
-                }
-                bridge.fingerprints.set(fp, { id: mem.id, timestamp: Date.now() });
-
-                // 层级映射: UMS layer → MemoryManager tier
-                let layer = 'shortTerm';
-                if (mem.importance > 0.6) layer = 'longTerm';
-                else if (mem.importance <= 0.3) layer = 'ephemeral';
-                const tier = bridge.layerToTier[layer];
-
-                // 同步到 memoryImportance (IndexedDB)
-                if (window.memoryImportance && mem.content) {
+            // 尝试同步到 MemoryImportance（如果可用）
+            const memoryImportance = bridge.dependencies.memoryImportance.instance;
+            if (memoryImportance && typeof memoryImportance.recordAccess === 'function') {
+                for (const mem of results.slice(0, 10)) {
                     try {
-                        const chunkId = 'bridge_' + mem.id;
-                        await window.memoryImportance.recordAccess(chunkId);
-                        const stats = await window.memoryImportance.getMemoryStats(chunkId);
-                        stats.importance = mem.importance;
-                        stats.memoryTier = tier;
-                        stats.content = mem.content.substring(0, 500);
+                        const fp = bridge.fingerprint(mem.content);
+                        if (bridge.dedupEnabled && bridge.fingerprints.has(fp)) {
+                            bridge.syncStats.skipped++;
+                            continue;
+                        }
+                        bridge.fingerprints.set(fp, { id: mem.id, timestamp: Date.now() });
+
+                        const chunkId = 'bridge_ums_' + mem.id.replace(/[^a-zA-Z0-9]/g, '_');
+                        await memoryImportance.recordAccess(chunkId);
+                        const stats = await memoryImportance.getMemoryStats(chunkId);
+                        stats.importance = mem.importance || 0.5;
+                        stats.memoryTier = bridge.layerToTier[mem.layer] || 'warm';
+                        stats.content = (mem.content || '').substring(0, 500);
                         stats.source = 'ums_sync';
-                        stats.conversationId = bridge.currentConversationId;
-                    } catch (e) { /* bridge sync non-critical */ }
+
+                        bridge.syncStats.umsToMm++;
+                    } catch(e) {
+                        bridge.addDebugLog(`同步记忆失败: ${e.message}`, 'warning');
+                    }
                 }
-                bridge.syncStats.umsToMm++;
             }
 
             return results;
         };
+
+        this.addDebugLog('✅ UMS → MM 同步已包装', 'success');
     }
 
-    // ====== 2. 双向同步: MemoryManager → UMS ======
-    _wrapSyncToInternalMemory() {
-        if (!window.memoryImportance || typeof window.memoryImportance.recordAccess !== 'function') {
-            // Try alternative: intercept via the MemoryManager
-            this._wrapMemoryManagerRemember();
-            return;
-        }
-
-        const mi = window.memoryImportance;
-        const origRecord = mi.recordAccess.bind(mi);
+    // ========== 4. 双向同步: MemoryManager → UMS (带降级) ==========
+    wrapMemoryManagerSync() {
         const bridge = this;
 
-        mi.recordAccess = async function(chunkId) {
-            const result = await origRecord(chunkId);
+        // 优先使用 memoryImportance
+        const memoryImportance = this.dependencies.memoryImportance.instance;
+        if (memoryImportance && typeof memoryImportance.recordAccess === 'function') {
+            const origRecord = memoryImportance.recordAccess.bind(memoryImportance);
 
-            if (!bridge.syncEnabled) return result;
+            memoryImportance.recordAccess = async function(chunkId) {
+                const result = await origRecord(chunkId);
 
-            // 检查是否有从 MemoryManager 同步过来的记忆
-            try {
-                const stats = await mi.getMemoryStats(chunkId);
-                if (stats && stats.memoryTier && stats.content && stats.source !== 'ums_sync') {
-                    const layer = bridge.tierToLayer[stats.memoryTier];
-                    const importance = stats.importance || 0.5;
-                    const fp = bridge.fingerprint(stats.content);
+                if (!bridge.syncEnabled) return result;
 
-                    if (bridge.dedupEnabled && bridge.fingerprints.has(fp)) {
-                        bridge.syncStats.skipped++;
-                        return result;
-                    }
-                    bridge.fingerprints.set(fp, { id: chunkId, timestamp: Date.now() });
-
-                    // 同步到 UltimateMemorySystem
-                    if (window.ultimateMemorySystem && window.ultimateMemorySystem.layers) {
-                        const memId = 'bridge_mm_' + chunkId.replace(/[^a-zA-Z0-9_]/g, '_');
-                        const memory = {
-                            id: memId,
-                            content: stats.content.substring(0, 300),
-                            importance: importance,
-                            timestamp: Date.now(),
-                            accessCount: 0,
-                            lastAccess: Date.now(),
-                            source: 'mm_sync',
-                            conversationId: bridge.currentConversationId
-                        };
-
-                        const targetLayer = bridge.tierToLayer[stats.memoryTier] || 'shortTerm';
-                        window.ultimateMemorySystem.layers[targetLayer].set(memId, memory);
-                        window.ultimateMemorySystem.saveToStorage();
-                    }
-                    bridge.syncStats.mmToUms++;
-                }
-            } catch (e) { /* bridge sync non-critical */ }
-
-            return result;
-        };
-    }
-
-    _wrapMemoryManagerRemember() {
-        // Fallback: wrap MemoryManager.remember() if it exists
-        const mm = window.memoryManager || (window.cognitiveEnhancer?.adapter);
-        if (!mm || typeof mm.remember !== 'function') return;
-
-        const origRemember = mm.remember.bind(mm);
-        const bridge = this;
-
-        mm.remember = async function(content, source) {
-            const result = await origRemember(content, source);
-
-            if (!bridge.syncEnabled || !window.ultimateMemorySystem) return result;
-
-            const fp = bridge.fingerprint(content);
-            if (bridge.dedupEnabled && bridge.fingerprints.has(fp)) {
-                bridge.syncStats.skipped++;
-                return result;
-            }
-            bridge.fingerprints.set(fp, { id: 'mm_' + Date.now(), timestamp: Date.now() });
-
-            try {
-                await window.ultimateMemorySystem.autoExtractMemories(content, '');
-                bridge.syncStats.mmToUms++;
-            } catch (e) {}
-
-            return result;
-        };
-    }
-
-    // ====== 3. 反馈闭环 ======
-    _wrapAddFeedback() {
-        // Hook into the feedback system at the UI level
-        const origAddFeedback = window.addFeedback;
-        const bridge = this;
-
-        if (typeof origAddFeedback === 'function') {
-            window.addFeedback = function(chunkId, feedbackType, messageId) {
-                bridge.feedbackStats.totalPositive += (feedbackType === 'positive' ? 1 : 0);
-                bridge.feedbackStats.totalNegative += (feedbackType === 'negative' ? 1 : 0);
-                bridge.feedbackStats.lastFeedback = { chunkId, feedbackType, time: Date.now() };
-
-                // Update importance in UltimateMemorySystem
-                if (window.ultimateMemorySystem) {
-                    const boost = feedbackType === 'positive' ? 0.15 : -0.1;
-                    for (const layerName of ['longTerm', 'shortTerm', 'ephemeral']) {
-                        if (!window.ultimateMemorySystem.layers[layerName]) continue;
-                        for (const [id, mem] of window.ultimateMemorySystem.layers[layerName]) {
-                            if (mem.content && mem.content.includes(chunkId?.substring(0, 20))) {
-                                mem.importance = Math.max(0.05, Math.min(1, mem.importance + boost));
-                                mem.feedbackApplied = true;
+                try {
+                    const stats = await memoryImportance.getMemoryStats(chunkId);
+                    if (stats && stats.content && stats.source !== 'ums_sync') {
+                        const ums = bridge.dependencies.ultimateMemorySystem.instance;
+                        if (ums && ums.layers) {
+                            const fp = bridge.fingerprint(stats.content);
+                            if (bridge.dedupEnabled && bridge.fingerprints.has(fp)) {
+                                bridge.syncStats.skipped++;
+                                return result;
                             }
+                            bridge.fingerprints.set(fp, { id: chunkId, timestamp: Date.now() });
+
+                            const memId = 'bridge_mm_' + chunkId.replace(/[^a-zA-Z0-9]/g, '_');
+                            const layer = bridge.tierToLayer[stats.memoryTier] || 'shortTerm';
+
+                            if (!ums.layers[layer]) ums.layers[layer] = new Map();
+                            ums.layers[layer].set(memId, {
+                                id: memId, content: stats.content.substring(0, 300),
+                                importance: stats.importance || 0.5, timestamp: Date.now(),
+                                source: 'mm_sync'
+                            });
+
+                            if (typeof ums.saveToStorage === 'function') ums.saveToStorage();
+                            bridge.syncStats.mmToUms++;
                         }
                     }
-                    window.ultimateMemorySystem.saveToStorage();
+                } catch(e) {
+                    bridge.addDebugLog(`MM→UMS 同步失败: ${e.message}`, 'warning');
                 }
 
-                return origAddFeedback(chunkId, feedbackType, messageId);
+                return result;
             };
+            this.addDebugLog('✅ MM → UMS 同步已包装 (via memoryImportance)', 'success');
         }
+        // 降级：包装 memoryManager.remember
+        else if (this.dependencies.memoryManager.ready) {
+            const mm = this.dependencies.memoryManager.instance;
+            if (mm && typeof mm.remember === 'function') {
+                const origRemember = mm.remember.bind(mm);
 
-        // Also hook the context-menu feedback handler
-        const origRecordFeedback = window.recordFeedback;
-        if (typeof origRecordFeedback === 'function') {
-            window.recordFeedback = function(chunkId, feedbackType) {
-                bridge.feedbackStats.totalPositive += (feedbackType === 'positive' ? 1 : 0);
-                bridge.feedbackStats.totalNegative += (feedbackType === 'negative' ? 1 : 0);
-                return origRecordFeedback(chunkId, feedbackType);
-            };
+                mm.remember = async function(content, source) {
+                    const result = await origRemember(content, source);
+
+                    const ums = bridge.dependencies.ultimateMemorySystem.instance;
+                    if (bridge.syncEnabled && ums && ums.layers && content) {
+                        try {
+                            const fp = bridge.fingerprint(content);
+                            if (!bridge.dedupEnabled || !bridge.fingerprints.has(fp)) {
+                                bridge.fingerprints.set(fp, { id: 'mm_' + Date.now(), timestamp: Date.now() });
+
+                                const memId = 'bridge_mm_' + Date.now();
+                                ums.layers.shortTerm = ums.layers.shortTerm || new Map();
+                                ums.layers.shortTerm.set(memId, {
+                                    id: memId, content: content.substring(0, 300),
+                                    importance: 0.7, timestamp: Date.now(), source: 'mm_remember'
+                                });
+                                if (typeof ums.saveToStorage === 'function') ums.saveToStorage();
+                                bridge.syncStats.mmToUms++;
+                            }
+                        } catch(e) {}
+                    }
+                    return result;
+                };
+                this.addDebugLog('✅ MM → UMS 同步已包装 (via memoryManager.remember)', 'success');
+            }
         }
     }
 
-    // ====== 4. 元认知驱动 calcImportance ======
-    _wrapUpdateCognitiveState() {
-        const observer = new MutationObserver(() => {
-            if (window.cognitiveEnhancer?.metacognition?.cognitiveState) {
-                this.updateFromMetacognition(window.cognitiveEnhancer.metacognition.cognitiveState);
-            }
-        });
+    // ========== 5. 反馈系统包装 ==========
+    wrapFeedbackSystem() {
+        const bridge = this;
 
-        // Poll every 10 seconds for metacognitive state changes
-        setInterval(() => {
-            if (window.cognitiveEnhancer?.metacognition?.cognitiveState) {
-                const cs = window.cognitiveEnhancer.metacognition.cognitiveState;
-                if (Date.now() - this.metaParams.lastUpdate > 30000) {
-                    this.updateFromMetacognition(cs);
+        // 拦截全局反馈函数
+        const feedbackTargets = ['addFeedback', 'recordFeedback'];
+
+        for (const fnName of feedbackTargets) {
+            const origFn = window[fnName];
+            if (typeof origFn === 'function') {
+                window[fnName] = async function(chunkId, feedbackType, ...args) {
+                    // 记录反馈统计
+                    bridge.feedbackStats = bridge.feedbackStats || { positive: 0, negative: 0 };
+                    if (feedbackType === 'positive') bridge.feedbackStats.positive++;
+                    else if (feedbackType === 'negative') bridge.feedbackStats.negative++;
+
+                    // 影响 UMS 中的记忆重要性
+                    const ums = bridge.dependencies.ultimateMemorySystem.instance;
+                    if (ums && ums.layers) {
+                        const boost = feedbackType === 'positive' ? 0.15 : -0.1;
+                        for (const layerName of ['longTerm', 'shortTerm', 'ephemeral']) {
+                            const layer = ums.layers[layerName];
+                            if (layer && layer.size) {
+                                for (const [id, mem] of layer) {
+                                    if (mem.content && mem.content.includes(chunkId?.substring(0, 20))) {
+                                        mem.importance = Math.max(0.05, Math.min(1, (mem.importance || 0.5) + boost));
+                                        mem.feedbackApplied = true;
+                                    }
+                                }
+                            }
+                        }
+                        if (typeof ums.saveToStorage === 'function') ums.saveToStorage();
+                    }
+
+                    return origFn ? await origFn(chunkId, feedbackType, ...args) : null;
+                };
+                this.addDebugLog(`✅ 反馈函数 ${fnName} 已包装`, 'success');
+            }
+        }
+    }
+
+    // ========== 6. 降级方案：独立的记忆提取器 ==========
+    installFallbackMemoryExtractor() {
+        const bridge = this;
+
+        // 如果没有 UMS，创建一个简化版
+        if (!this.dependencies.ultimateMemorySystem.ready) {
+            window.ultimateMemorySystem = window.ultimateMemorySystem || {
+                layers: { longTerm: new Map(), shortTerm: new Map(), ephemeral: new Map() },
+                autoExtractMemories: async function(userMsg, aiMsg) {
+                    // 简化的记忆提取逻辑
+                    const content = (userMsg + ' ' + aiMsg).substring(0, 200);
+                    if (content.length < 20) return [];
+
+                    const importance = Math.min(0.8, content.length / 200);
+                    const memory = {
+                        id: 'fallback_' + Date.now(),
+                        content: content,
+                        importance: importance,
+                        timestamp: Date.now(),
+                        source: 'fallback_extractor'
+                    };
+
+                    const targetLayer = importance > 0.6 ? 'longTerm' : 'shortTerm';
+                    this.layers[targetLayer].set(memory.id, memory);
+
+                    bridge.addDebugLog(`📝 降级记忆提取: "${content.substring(0, 50)}..."`, 'info');
+                    return [memory];
+                },
+                saveToStorage: function() {
+                    try {
+                        const data = {
+                            longTerm: Array.from(this.layers.longTerm.entries()),
+                            shortTerm: Array.from(this.layers.shortTerm.entries()),
+                            ephemeral: Array.from(this.layers.ephemeral.entries())
+                        };
+                        localStorage.setItem('ultimate_memory_system_fallback', JSON.stringify(data));
+                    } catch(e) {}
+                }
+            };
+            this.dependencies.ultimateMemorySystem.ready = true;
+            this.dependencies.ultimateMemorySystem.instance = window.ultimateMemorySystem;
+            this.addDebugLog('🔄 已安装降级记忆提取器', 'warning');
+        }
+    }
+
+    // ========== 7. 健康检查与自动修复 ==========
+    startHealthCheck() {
+        if (this.healthCheckId) clearInterval(this.healthCheckId);
+
+        this.healthCheckId = setInterval(() => {
+            this.performHealthCheck();
+        }, this.config.healthCheckInterval);
+
+        if (window.cleanupManager && this.healthCheckId) {
+            window.cleanupManager.addInterval(this.healthCheckId);
+        }
+    }
+
+    async performHealthCheck() {
+        let issues = [];
+
+        // 检查每个依赖的健康状态
+        for (const [name, dep] of Object.entries(this.dependencies)) {
+            if (dep.ready && dep.instance) {
+                try {
+                    const isValid = this.isInstanceValid(dep.instance, name);
+                    if (!isValid) {
+                        issues.push({ name, reason: '实例无效' });
+                        dep.ready = false;
+                    }
+                } catch(e) {
+                    issues.push({ name, reason: e.message });
+                    dep.ready = false;
                 }
             }
-        }, 10000);
-    }
-
-    updateFromMetacognition(cognitiveState) {
-        if (!cognitiveState) return;
-
-        // 置信度高 → 降低阈值(更自信地保存记忆)
-        if (cognitiveState.confidence !== undefined) {
-            this.metaParams.baseImportanceThreshold = Math.max(0.05, 0.3 - cognitiveState.confidence * 0.3);
-            this.metaParams.confidenceScale = 0.5 + cognitiveState.confidence * 0.5;
         }
 
-        // 探索心高 → 给新主题加分
-        if (cognitiveState.exploration !== undefined) {
-            this.metaParams.explorationBonus = cognitiveState.exploration * 0.25;
-        }
+        if (issues.length > 0) {
+            this.addDebugLog(`⚠️ 健康检查发现 ${issues.length} 个问题: ${issues.map(i => i.name).join(', ')}`, 'warning');
 
-        // 好奇心高 → 给未知内容加分
-        if (cognitiveState.curiosity !== undefined) {
-            this.metaParams.curiosityWeight = cognitiveState.curiosity * 0.2;
-        }
-
-        // 稳定性高 → 衰减更慢
-        if (cognitiveState.stability !== undefined) {
-            this.metaParams.stabilityDecay = 0.5 + cognitiveState.stability * 0.5;
-        }
-
-        this.metaParams.lastUpdate = Date.now();
-
-        // 直接调整 UltimateMemorySystem 的 calcImportance 参数
-        if (window.ultimateMemorySystem && typeof window.ultimateMemorySystem.calcImportance === 'function') {
-            this._injectMetaParams();
-        }
-    }
-
-    _injectMetaParams() {
-        const ums = window.ultimateMemorySystem;
-        const origCalc = ums.calcImportance.bind(ums);
-        const metaParams = this.metaParams;
-
-        ums.calcImportance = function(entities, valueScore) {
-            const originalScore = origCalc(entities, valueScore);
-
-            // 应用元认知参数调整
-            let adjusted = originalScore * metaParams.confidenceScale;
-
-            // 探索加分: 如果实体有新技术关键词
-            if (entities && entities.technologies && entities.technologies.length > 0) {
-                adjusted += metaParams.explorationBonus;
+            if (this.config.autoRepair) {
+                await this.attemptRepair(issues);
             }
-
-            // 好奇心加权: 未知内容给额外分数
-            adjusted += metaParams.curiosityWeight;
-
-            // 稳定衰减
-            adjusted *= metaParams.stabilityDecay;
-
-            // 阈值过滤
-            adjusted = Math.max(metaParams.baseImportanceThreshold, Math.min(1.0, adjusted));
-
-            return adjusted;
-        };
+        }
     }
 
-    // ====== 5. 内容指纹去重 ======
-    fingerprint(content) {
-        if (!content) return '';
-        // 取前200字符规范化作为指纹
-        return content.substring(0, 200)
-            .replace(/\s+/g, ' ')
-            .replace(/[,。!?;:""''()【】《》...-\-]/g, '')
-            .trim()
-            .toLowerCase()
-            .substring(0, 100);
+    async attemptRepair(issues) {
+        for (const issue of issues) {
+            switch(issue.name) {
+                case 'ultimateMemorySystem':
+                    if (!this.dependencies.ultimateMemorySystem.instance) {
+                        this.installFallbackMemoryExtractor();
+                    }
+                    break;
+                case 'memoryImportance':
+                    // 尝试重新获取
+                    if (window.memoryImportance) {
+                        this.dependencies.memoryImportance.instance = window.memoryImportance;
+                        this.dependencies.memoryImportance.ready = true;
+                        this.addDebugLog(`🔧 修复: 重新绑定 memoryImportance`, 'success');
+                    }
+                    break;
+                case 'memoryManager':
+                    if (window.memoryManager) {
+                        this.dependencies.memoryManager.instance = window.memoryManager;
+                        this.dependencies.memoryManager.ready = true;
+                        this.addDebugLog(`🔧 修复: 重新绑定 memoryManager`, 'success');
+                    }
+                    break;
+            }
+        }
     }
 
-    isDuplicate(content) {
-        return this.fingerprints.has(this.fingerprint(content));
-    }
-
-    getDedupStats() {
-        return {
-            fingerprints: this.fingerprints.size,
-            syncStats: { ...this.syncStats }
-        };
-    }
-
-    // ====== 6. 跨对话记忆共享 ======
-    _loadConversations() {
+    // ========== 8. 对话管理 ==========
+    loadConversations() {
         try {
-            const saved = localStorage.getItem('bridge_conversations_v1');
+            const saved = localStorage.getItem('bridge_conversations_v2');
             if (saved) {
                 const data = JSON.parse(saved);
                 this.conversations = new Map(Object.entries(data.conversations || {}));
                 this.currentConversationId = data.current || 'default';
             }
-        } catch (e) {}
+        } catch(e) {}
 
-        if (!this.conversations.has('default')) {
+        if (!this.conversations || this.conversations.size === 0) {
+            this.conversations = new Map();
             this.conversations.set('default', {
-                id: 'default',
-                name: '默认对话',
-                createdAt: Date.now(),
-                memoryCount: 0,
-                tags: []
+                id: 'default', name: '默认对话', createdAt: Date.now(),
+                memoryCount: 0, tags: []
             });
+            this.currentConversationId = 'default';
+        }
+
+        // 加载全局共享池
+        try {
+            const pool = localStorage.getItem('bridge_global_pool_v2');
+            if (pool) this.globalSharedPool = new Set(JSON.parse(pool));
+            else this.globalSharedPool = new Set();
+        } catch(e) {
+            this.globalSharedPool = new Set();
         }
     }
 
-    _saveConversations() {
+    saveConversations() {
         const data = {
             current: this.currentConversationId,
             conversations: Object.fromEntries(this.conversations)
         };
-        localStorage.setItem('bridge_conversations_v1', JSON.stringify(data));
+        localStorage.setItem('bridge_conversations_v2', JSON.stringify(data));
     }
 
-    switchConversation(convId) {
-        if (!this.conversations.has(convId)) return false;
-        this.currentConversationId = convId;
-        this.conversations.get(convId).lastAccessed = Date.now();
-        this._saveConversations();
+    // ========== 9. 工具方法 ==========
+    fingerprint(content) {
+        if (!content) return '';
+        return content.substring(0, 200)
+            .replace(/\s+/g, ' ')
+            .replace(/[,。!?;:""''()【】《》]/g, '')
+            .trim().toLowerCase().substring(0, 100);
+    }
+
+    addDebugLog(msg, type) {
         if (typeof addDebugLog === 'function') {
-            addDebugLog(`🔄 切换到: ${this.conversations.get(convId).name}`, 'info');
+            addDebugLog(msg, type);
+        } else {
+            console.log(`[MemoryBridge] ${msg}`);
         }
-        return true;
     }
 
-    createConversation(name, tags = []) {
-        const id = 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-        this.conversations.set(id, {
-            id,
-            name: name || ('对话 ' + new Date().toLocaleString()),
-            createdAt: Date.now(),
-            lastAccessed: Date.now(),
-            memoryCount: 0,
-            tags
-        });
-        this._saveConversations();
-        return id;
-    }
-
-    getConversationList() {
-        return [...this.conversations.values()]
-            .sort((a, b) => (b.lastAccessed || b.createdAt) - (a.lastAccessed || a.createdAt))
-            .map(c => ({ ...c, isCurrent: c.id === this.currentConversationId }));
-    }
-
-    deleteConversation(convId) {
-        if (convId === 'default') return false;
-        this.conversations.delete(convId);
-        if (this.currentConversationId === convId) {
-            this.currentConversationId = 'default';
-        }
-        this._saveConversations();
-        return true;
-    }
-
-    // 全局共享记忆池: 标记重要记忆为跨对话可用
-    shareMemory(memoryId) {
-        this.globalSharedPool.add(memoryId);
-        localStorage.setItem('bridge_global_pool_v1', JSON.stringify([...this.globalSharedPool]));
-    }
-
-    unshareMemory(memoryId) {
-        this.globalSharedPool.delete(memoryId);
-        localStorage.setItem('bridge_global_pool_v1', JSON.stringify([...this.globalSharedPool]));
-    }
-
-    getGlobalMemories() {
-        if (!window.ultimateMemorySystem) return [];
-        const all = [];
-        for (const layerName of ['longTerm', 'shortTerm', 'ephemeral']) {
-            if (!window.ultimateMemorySystem.layers[layerName]) continue;
-            for (const [id, mem] of window.ultimateMemorySystem.layers[layerName]) {
-                if (this.globalSharedPool.has(id) || mem.importance > 0.8) {
-                    all.push(mem);
-                }
+    async processPendingSyncs() {
+        while (this.pendingSyncs.length > 0) {
+            const sync = this.pendingSyncs.shift();
+            try {
+                await sync();
+            } catch(e) {
+                this.addDebugLog(`处理待同步任务失败: ${e.message}`, 'error');
             }
         }
-        return all.sort((a, b) => b.importance - a.importance);
     }
 
-    getCurrentConversationMemories() {
-        if (!window.ultimateMemorySystem) return [];
-        const convId = this.currentConversationId;
-        const all = [];
-        for (const layerName of ['longTerm', 'shortTerm', 'ephemeral']) {
-            if (!window.ultimateMemorySystem.layers[layerName]) continue;
-            for (const [id, mem] of window.ultimateMemorySystem.layers[layerName]) {
-                if (!mem.conversationId || mem.conversationId === convId) {
-                    all.push(mem);
-                }
-            }
-        }
-        const shared = this.getGlobalMemories();
-        return [...new Set([...all, ...shared])].sort((a, b) => b.importance - a.importance);
-    }
-
-    // 在纯模型(default)模式下,默认启用跨对话共享
-    isCrossConversationEnabled() {
-        return this.crossConversationEnabled || this.currentConversationId === 'default';
-    }
-
-    // 检索时混入全局共享记忆
-    enhanceSearchResults(results) {
-        if (this.isCrossConversationEnabled()) {
-            const global = this.getGlobalMemories();
-            const enriched = [...results];
-            for (const g of global.slice(0, 5)) {
-                if (!enriched.find(r => r.id === g.id)) {
-                    enriched.push({ ...g, source: 'global_shared' });
-                }
-            }
-            return enriched;
-        }
-        return results;
-    }
-
-    // ====== 统计 ======
-    getBridgeStats() {
+    // ========== 10. 公开API ==========
+    getStatus() {
         return {
-            sync: { ...this.syncStats },
-            dedup: { fingerprints: this.fingerprints.size },
-            meta: { ...this.metaParams },
-            conversations: this.conversations.size,
-            currentConversation: this.currentConversationId,
-            feedback: { ...this.feedbackStats },
-            globalPoolSize: this.globalSharedPool.size
+            initialized: this.initialized,
+            dependencies: Object.fromEntries(
+                Object.entries(this.dependencies).map(([k, v]) => [k, { ready: v.ready, retries: v.retries }])
+            ),
+            syncStats: { ...this.syncStats },
+            dedupSize: this.fingerprints.size,
+            conversations: this.conversations ? this.conversations.size : 0,
+            currentConversation: this.currentConversationId
         };
+    }
+
+    getBridgeStats() {
+        return this.getStatus();
+    }
+
+    destroy() {
+        if (this.healthCheckId) {
+            clearInterval(this.healthCheckId);
+            this.healthCheckId = null;
+        }
+        this.initialized = false;
+        this.addDebugLog('MemoryBridge 已销毁', 'info');
     }
 }
 
 // ====== 全局命令: /bridge === MemoryBridge 控制 ======
 if (typeof window !== 'undefined') {
-    window.MemoryBridge = MemoryBridge;
-
-    // 延迟初始化,确保所有系统就绪
-    const initBridge = () => {
-        if (!window.memoryBridge) {
-            window.memoryBridge = new MemoryBridge();
-            window.memoryBridge.init();
-        }
-    };
-
-    if (document.readyState === 'complete') {
-        setTimeout(initBridge, 1500);
-    } else {
-        window.addEventListener('load', () => setTimeout(initBridge, 1500));
-    }
+    window.MemoryBridge = RobustMemoryBridge;
 }
 
-console.log('📦 Phase 6 MemoryBridge loaded - 6 enhancements ready');
+// ====== 启动强化版 MemoryBridge ======
+(async function() {
+    const waitForBody = () => new Promise(r => {
+        if (document.body) r();
+        else document.addEventListener('DOMContentLoaded', r);
+    });
+    await waitForBody();
+    await new Promise(r => setTimeout(r, 2000));
+
+    if (!window.memoryBridge || !window.memoryBridge.initialized) {
+        window.memoryBridge = new RobustMemoryBridge();
+        await window.memoryBridge.init();
+        window.memoryBridgeDiagnostics = () => console.table(window.memoryBridge.getStatus());
+        console.log('✅ RobustMemoryBridge 已启动 | 输入 memoryBridgeDiagnostics() 查看状态');
+    }
+})();
+
+console.log('📦 Phase 6 RobustMemoryBridge loaded - 8 enhancements ready');
 </script>
 
 
@@ -17925,338 +18007,6 @@ window.continueGeneration = async function() {
 addDebugLog('✅ DeepSeek 最终续写修复已应用(自动过滤代码块标记)', 'success');
 </script>
 <script>
-// ==================== 缺失的核心类定义 - 修复补丁 ====================
-
-// 1. MemoryImportanceEngine 类
-class MemoryImportanceEngine {
-    constructor(kbManager) {
-        this.kbManager = kbManager;
-        this.decayFactor = 0.95;
-        this.halfLife = 7;
-        this.importanceThresholds = { hot: 0.7, warm: 0.3, cold: 0.1 };
-    }
-
-    async calculateImportance(chunkId, chunkData) {
-        return { importance: 0.5, tier: 'cold', components: {} };
-    }
-
-    getMemoryTier(importance) {
-        if (importance >= 0.7) return 'hot';
-        if (importance >= 0.3) return 'warm';
-        if (importance >= 0.1) return 'cold';
-        return 'archived';
-    }
-
-    calculateQualityScore(text) { return 0.5; }
-
-    async getMemoryStats(chunkId) {
-        return { chunkId, accessCount: 0, lastAccess: Date.now(), createdAt: Date.now(), incomingEdges: 0, importance: 0.5, memoryTier: 'cold' };
-    }
-
-    async recordAccess(chunkId) {
-        return { chunkId, accessCount: 1 };
-    }
-
-    async getChunkContent(chunkId) {
-        const text = await this.kbManager?.engine?.store?.loadChunk(chunkId);
-        return { text: text || '' };
-    }
-
-    async getUserFeedback(chunkId) {
-        return { positive: 0, negative: 0, total: 0 };
-    }
-
-    async addFeedback(chunkId, feedbackType, messageId = null) {
-        if (typeof addDebugLog === 'function') addDebugLog(`📝 反馈记录: ${chunkId} -> ${feedbackType}`, 'info');
-    }
-
-    async getAllMemoryMetadata() {
-        const db = await this.kbManager?.engine?.store?.init();
-        if (!db || !db.objectStoreNames?.contains('memoryMeta')) return [];
-        return new Promise((resolve) => {
-            const tx = db.transaction(['memoryMeta'], 'readonly');
-            const req = tx.objectStore('memoryMeta').getAll();
-            req.onsuccess = () => resolve(req.result || []);
-            req.onerror = () => resolve([]);
-        });
-    }
-
-    async updateMemoryStatsUI() {
-        const memories = await this.getAllMemoryMetadata();
-        const stats = {
-            hot: memories.filter(m => m.memoryTier === 'hot').length,
-            warm: memories.filter(m => m.memoryTier === 'warm').length,
-            cold: memories.filter(m => m.memoryTier === 'cold').length,
-            archived: memories.filter(m => m.memoryTier === 'archived').length,
-            total: memories.length
-        };
-
-        const hotEl = document.getElementById('hotCount');
-        const warmEl = document.getElementById('warmCount');
-        const coldEl = document.getElementById('coldCount');
-        const archEl = document.getElementById('archivedCount');
-        if (hotEl) hotEl.innerText = stats.hot;
-        if (warmEl) warmEl.innerText = stats.warm;
-        if (coldEl) coldEl.innerText = stats.cold;
-        if (archEl) archEl.innerText = stats.archived;
-
-        return stats;
-    }
-}
-
-// 2. MemoryAssociationEngine 类
-class MemoryAssociationEngine {
-    constructor(kbManager, importanceEngine) {
-        this.kbManager = kbManager;
-        this.importanceEngine = importanceEngine;
-        this.associationGraph = new Map();
-        this.isInitialized = false;
-        this.config = {
-            minAssociationStrength: 0.1,
-            maxAssociationsPerNode: 50,
-            decayRate: 0.95,
-            recencyBoost: 0.3,
-            semanticWeight: 0.4,
-            cooccurrenceWeight: 0.3,
-            temporalWeight: 0.2,
-            feedbackWeight: 0.1
-        };
-    }
-
-    async init() {
-        if (this.isInitialized) return;
-        await this.loadAssociationGraph();
-        this.isInitialized = true;
-        if (typeof addDebugLog === 'function') addDebugLog('🔗 记忆关联引擎已初始化', 'success');
-    }
-
-    async loadAssociationGraph() {
-        const db = await this.kbManager?.engine?.store?.init();
-        if (!db || !db.objectStoreNames?.contains('memoryEdges')) return;
-
-        return new Promise((resolve) => {
-            const tx = db.transaction(['memoryEdges'], 'readonly');
-            const req = tx.objectStore('memoryEdges').getAll();
-            req.onsuccess = () => {
-                const edges = req.result || [];
-                for (const edge of edges) {
-                    if (!this.associationGraph.has(edge.sourceId)) {
-                        this.associationGraph.set(edge.sourceId, new Map());
-                    }
-                    this.associationGraph.get(edge.sourceId).set(edge.targetId, edge);
-                }
-                resolve();
-            };
-            req.onerror = () => resolve();
-        });
-    }
-
-    async saveAssociation(edge) {
-        const db = await this.kbManager?.engine?.store?.init();
-        if (!db || !db.objectStoreNames?.contains('memoryEdges')) return;
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(['memoryEdges'], 'readwrite');
-            tx.objectStore('memoryEdges').put(edge);
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-        });
-    }
-
-    async deleteAssociation(sourceId, targetId) {
-        const db = await this.kbManager?.engine?.store?.init();
-        if (!db || !db.objectStoreNames?.contains('memoryEdges')) return;
-        const key = `${sourceId}|${targetId}`;
-        return new Promise((resolve) => {
-            const tx = db.transaction(['memoryEdges'], 'readwrite');
-            tx.objectStore('memoryEdges').delete(key);
-            tx.oncomplete = () => {
-                if (this.associationGraph.has(sourceId)) {
-                    this.associationGraph.get(sourceId).delete(targetId);
-                }
-                resolve();
-            };
-            tx.onerror = () => resolve();
-        });
-    }
-
-    async calculateSemanticSimilarity(chunkId1, chunkId2) { return 0.3; }
-    calculateCooccurrenceStrength(chunkId1, chunkId2) { return 0.2; }
-    calculateTemporalStrength(chunkId1, chunkId2, temporalDistance) { return 0.5; }
-    async getFeedbackInfluence(sourceId, targetId) { return 0; }
-
-    async computeAssociationStrength(sourceId, targetId, context = {}) {
-        return 0.3;
-    }
-
-    async createAssociation(sourceId, targetId, context = {}) {
-        if (sourceId === targetId) return null;
-        const strength = await this.computeAssociationStrength(sourceId, targetId, context);
-        if (strength < this.config.minAssociationStrength) return null;
-
-        const edgeId = `${sourceId}|${targetId}`;
-        const edge = {
-            id: edgeId, sourceId, targetId, strength,
-            createdAt: Date.now(), lastAccessed: Date.now(), accessCount: 1,
-            context: { temporalDistance: context.temporalDistance, conversationId: context.conversationId },
-            type: strength > 0.7 ? 'strong' : (strength > 0.3 ? 'medium' : 'weak')
-        };
-
-        if (!this.associationGraph.has(sourceId)) this.associationGraph.set(sourceId, new Map());
-        this.associationGraph.get(sourceId).set(targetId, edge);
-        await this.saveAssociation(edge);
-        return edge;
-    }
-
-    async retrieveByAssociation(chunkId, options = {}) {
-        const { maxDepth = 2, minStrength = 0.2, maxResults = 10 } = options;
-        if (!this.associationGraph.has(chunkId)) return [];
-
-        const visited = new Set();
-        const results = new Map();
-        const queue = [{ id: chunkId, depth: 0, strength: 1.0 }];
-
-        while (queue.length > 0) {
-            const current = queue.shift();
-            if (visited.has(current.id)) continue;
-            visited.add(current.id);
-
-            if (current.depth > 0 && current.id !== chunkId) {
-                if (!results.has(current.id) || current.strength > results.get(current.id).strength) {
-                    results.set(current.id, { chunkId: current.id, strength: current.strength, depth: current.depth });
-                }
-            }
-
-            if (current.depth >= maxDepth) continue;
-            const neighbors = this.associationGraph.get(current.id);
-            if (!neighbors) continue;
-
-            for (const [neighborId, edge] of neighbors) {
-                if (visited.has(neighborId)) continue;
-                const newStrength = current.strength * edge.strength;
-                if (newStrength >= minStrength) {
-                    queue.push({ id: neighborId, depth: current.depth + 1, strength: newStrength });
-                }
-            }
-        }
-
-        const resultsList = Array.from(results.values()).sort((a, b) => b.strength - a.strength);
-        const enrichedResults = [];
-        for (const result of resultsList.slice(0, maxResults)) {
-            const content = await this.kbManager?.engine?.store?.loadChunk(result.chunkId);
-            if (content) enrichedResults.push({ ...result, content: content.substring(0, 500) });
-        }
-        return enrichedResults;
-    }
-
-    async strengthenAssociation(sourceId, targetId) {}
-    async decayWeakAssociations() { return 0; }
-    async getAssociationNetwork(chunkId, maxDepth = 2) { return { nodes: [], edges: [] }; }
-    getStats() {
-        let totalEdges = 0, strongEdges = 0, mediumEdges = 0, weakEdges = 0;
-        for (const neighbors of this.associationGraph.values()) {
-            for (const edge of neighbors.values()) {
-                totalEdges++;
-                if (edge.type === 'strong') strongEdges++;
-                else if (edge.type === 'medium') mediumEdges++;
-                else weakEdges++;
-            }
-        }
-        return { totalEdges, strongEdges, mediumEdges, weakEdges, uniqueNodes: this.associationGraph.size };
-    }
-
-    tokenize(text) { return text?.toLowerCase().match(/[\u4e00-\u9fa5]+|[a-zA-Z]{2,}/g) || []; }
-    extractKeywords(text, limit = 10) { return []; }
-}
-
-// 3. MemoryAutoCompressor 类
-class MemoryAutoCompressor {
-    constructor(kbManager, summarizer, importanceEngine) {
-        this.kbManager = kbManager;
-        this.summarizer = summarizer;
-        this.importanceEngine = importanceEngine;
-        this.compressionSchedule = null;
-        this.isCompressing = false;
-        this.config = { hotMaxChunks: 500, warmMaxChunks: 2000, coldCompressAfter: 30, summaryTargetLength: 200 };
-    }
-
-    startAutoCompression(intervalMinutes = 120) {
-        if (this.compressionSchedule) clearInterval(this.compressionSchedule);
-        this.compressionSchedule = setInterval(async () => {
-            if (!this.isCompressing && document.visibilityState === 'visible') {
-                await this.runCompressionCycle();
-            }
-        }, intervalMinutes * 60 * 1000);
-        if (typeof addDebugLog === 'function') addDebugLog(`🗜️ 自动压缩已启动,间隔 ${intervalMinutes} 分钟`, 'info');
-    }
-
-    _fallbackCompress(text, maxLength = 200) {
-        if (!text || text.length <= maxLength) return text;
-        const firstParagraph = text.split(/\n\s*\n/)[0] || text;
-        const summary = firstParagraph.substring(0, maxLength);
-        return `【摘要】\n${summary}${summary.length < text.length ? '...' : ''}\n\n(原内容已压缩,长度: ${text.length} 字符)`;
-    }
-
-    async compressMemory(chunkId) {
-        const originalText = await this.kbManager?.engine?.store?.loadChunk(chunkId);
-        if (!originalText || originalText.length < 500) return false;
-
-        const summaryText = this._fallbackCompress(originalText, this.config.summaryTargetLength);
-        const summaryChunk = {
-            id: `${chunkId}_summary_${Date.now()}`,
-            text: `【记忆摘要】\n原文长度: ${originalText.length}字符\n压缩时间: ${new Date().toLocaleString()}\n\n${summaryText}`,
-            isSummary: true, originalChunkId: chunkId, compressedAt: Date.now()
-        };
-
-        const db = await this.kbManager?.engine?.store?.init();
-        if (db && db.objectStoreNames?.contains('memoryMeta')) {
-            const tx = db.transaction(['chunks', 'memoryMeta'], 'readwrite');
-            const metaStore = tx.objectStore('memoryMeta');
-            const originalMeta = await this.importanceEngine?.getMemoryStats(chunkId) || {};
-            originalMeta.isCompressed = true;
-            originalMeta.compressedTo = summaryChunk.id;
-            originalMeta.memoryTier = 'archived';
-            metaStore.put(originalMeta);
-            tx.objectStore('chunks').put(summaryChunk);
-        }
-        return true;
-    }
-
-    async runCompressionCycle() {
-        this.isCompressing = true;
-        if (typeof addDebugLog === 'function') addDebugLog('🔄 开始记忆压缩周期', 'info');
-        try {
-            const allMemories = await this.importanceEngine?.getAllMemoryMetadata() || [];
-            const coldCandidates = allMemories.filter(m =>
-                !m.isSummary && (Date.now() - m.lastAccess) / 86400000 > this.config.coldCompressAfter
-            );
-            let compressedCount = 0;
-            for (const memory of coldCandidates.slice(0, 10)) {
-                if (await this.compressMemory(memory.chunkId)) compressedCount++;
-            }
-            if (typeof addDebugLog === 'function') addDebugLog(`✅ 压缩完成: 压缩了 ${compressedCount} 条冷记忆`, 'success');
-            await this.importanceEngine?.updateMemoryStatsUI();
-        } catch (error) {
-            if (typeof addDebugLog === 'function') addDebugLog(`❌ 压缩失败: ${error.message}`, 'error');
-        } finally {
-            this.isCompressing = false;
-        }
-    }
-
-    async manualCompress() {
-        if (this.isCompressing) {
-            if (typeof showToast === 'function') showToast('压缩任务正在进行中...');
-            return false;
-        }
-        await this.runCompressionCycle();
-        if (typeof showToast === 'function') showToast('记忆压缩完成');
-        return true;
-    }
-}
-
-if (typeof addDebugLog === 'function') {
-    addDebugLog('✅ 缺失的核心类已补全 (MemoryImportanceEngine, MemoryAssociationEngine, MemoryAutoCompressor)', 'success');
-}
-</script>
 <!-- ==================== 关键修复补丁 ==================== -->
 <script>
 // ==================== 修复 1: 定义缺失的 getCachedMessage ====================
