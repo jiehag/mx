@@ -4424,7 +4424,7 @@ function clearAllAttachments() {
         class MemoryManager {
             constructor(fs, kbMgr, imp, assoc) {
                 this.fs = fs; this.kbManager = kbMgr; this.memoryImportance = imp; this.memoryAssociation = assoc;
-                this.config = { autoDailyNote: true, maxDailySize: 10000, ...JSON.parse(localStorage.getItem('memory_manager_config') || '{}') };
+                this.config = { autoDailyNote: true, maxDailySize: 25000, ...JSON.parse(localStorage.getItem('memory_manager_config') || '{}') };
             }
             async init() { this.fs.on('fileChanged', (data) => this.onFileChanged(data)); await this.ensureDailyNote(); }
             getTodayPath() { const date = new Date().toISOString().slice(0, 10); return `memory/${date}.md`; }
@@ -8352,7 +8352,7 @@ ${content}
             message += `\n💡 **提示**:\n`;
             message += `• 右键AI消息可选择"有用"/"无用"来调整记忆权重\n`;
             message += `• 高频使用的记忆会自动提升为热记忆\n`;
-            message += `• 冷记忆会在30天后自动压缩为摘要\n`;
+            message += `• 冷记忆根据重要性+访问频率动态压缩(高频高重要保护,低频低重要优先)\n`;
             message += `• 记忆之间会自动建立关联,实现联想检索\n`;
             message += `• 点击左侧"🕸️ 关联图谱"查看记忆关联网络`;
 
@@ -8906,7 +8906,7 @@ ${mode === 'merge' ? `• 合并更新: ${skippedCount} 条` : '• 模式: 完�
 💡 **操作建议**
 • 点击"📤 导出记忆"可备份当前数据
 • 弱关联会随时间自动衰减
-• 冷记忆30天未使用会被压缩`;
+• 冷记忆根据重要性衰减+访问频率动态压缩`;
 
             await appendMessageDOM('kb', message);
             const chat = chats.find(c => c.id === currentChatId);
@@ -11219,7 +11219,7 @@ ${citationExamples}
 **AI记忆系统 + 关联学习**:
 • 右键AI消息选择"有用"/"无用"调整记忆权重
 • 高频使用的记忆自动提升为热记忆
-• 冷记忆30天后自动压缩为摘要
+• 冷记忆根据重要性+访问频率动态压缩
 • **记忆之间会自动建立关联,实现联想检索**
 • 左侧边栏查看记忆分层统计和关联网络
 • **📤 导出记忆:可备份所有记忆数据**
@@ -12107,6 +12107,13 @@ ${citationExamples}
                 return `【摘要】\n${summary}\n\n(原内容已压缩,长度: ${text.length} 字符)`;
             }
 
+            _getCompressionThreshold(memory, baseDays = this.config.coldCompressAfter || 30) {
+                const importance = Math.max(0, Math.min(1, (memory.importance || 0) / 10));
+                const accessFreq = Math.min(1.0, (memory.accessCount || 0) / 20);
+                const multiplier = importance * 1.0 + accessFreq * 0.5 + 0.3;
+                return Math.round(baseDays * multiplier);
+            }
+
             async compressMemory(chunkId) {
                 const originalText = await this.kbManager.engine.store.loadChunk(chunkId);
                 if (!originalText || originalText.length < 500) return false;
@@ -12203,7 +12210,7 @@ ${citationExamples}
                     let compressedCount = 0;
                     for (const memory of coldCandidates) {
                         const daysSinceAccess = (Date.now() - memory.lastAccess) / (1000 * 3600 * 24);
-                        if (daysSinceAccess > this.config.coldCompressAfter && !memory.isSummary && memory.textLength > 500) {
+                        const threshold = this._getCompressionThreshold(memory); if (daysSinceAccess > threshold && !memory.isSummary && memory.textLength > 500) {
                             const compressed = await this.compressMemory(memory.chunkId);
                             if (compressed) compressedCount++;
                         }
@@ -16462,7 +16469,7 @@ class RobustMemoryBridge {
     }
 
     // ========== 1. 核心:健壮的依赖等待 ==========
-    async waitForDependency(name, getter, timeout = 15000) {
+    async waitForDependency(name, getter, timeout = 30000) {
         const startTime = Date.now();
         const dep = this.dependencies[name];
 
@@ -16518,11 +16525,11 @@ class RobustMemoryBridge {
 
         // 并行等待所有依赖(不阻塞,各自超时)
         const results = await Promise.allSettled([
-            this.waitForDependency('ultimateMemorySystem', () => window.ultimateMemorySystem, 15000),
-            this.waitForDependency('memoryImportance', () => window.memoryImportance, 12000),
-            this.waitForDependency('memoryManager', () => window.memoryManager, 10000),
-            this.waitForDependency('kbManager', () => window.kbManager, 10000),
-            this.waitForDependency('cognitiveEnhancer', () => window.cognitiveEnhancer, 8000)
+            this.waitForDependency('ultimateMemorySystem', () => window.ultimateMemorySystem, 30000),
+            this.waitForDependency('memoryImportance', () => window.memoryImportance, 25000),
+            this.waitForDependency('memoryManager', () => window.memoryManager, 25000),
+            this.waitForDependency('kbManager', () => window.kbManager, 25000),
+            this.waitForDependency('cognitiveEnhancer', () => window.cognitiveEnhancer, 20000)
         ]);
 
         // 统计就绪数量
@@ -16995,13 +17002,22 @@ class EnhancedMemoryCompressor {
         this.stats = { totalCompressed: 0, totalArchived: 0, bytesSaved: 0 };
     }
 
+    _getDynamicThreshold(memory, baseDays) {
+        const importance = Math.max(0, Math.min(1, (memory.importance || 0) / 10));
+        const accessFreq = Math.min(1.0, (memory.accessCount || 0) / 20);
+        const multiplier = importance * 1.0 + accessFreq * 0.5 + 0.3;
+        return Math.round(baseDays * multiplier);
+    }
+
     /** 分层压缩策略 */
     async tieredCompress(memory) {
         const daysSinceAccess = (Date.now() - memory.lastAccess) / 86400000;
-        if (daysSinceAccess > this.config.archiveAfter) {
+        const archiveThreshold = this._getDynamicThreshold(memory, this.config.archiveAfter);
+        const coldThreshold = this._getDynamicThreshold(memory, this.config.coldCompressAfter);
+        if (daysSinceAccess > archiveThreshold) {
             return this.archiveCompress(memory);
         }
-        if (daysSinceAccess > this.config.coldCompressAfter) {
+        if (daysSinceAccess > coldThreshold) {
             return this.coldCompress(memory);
         }
         return memory;
@@ -17628,7 +17644,7 @@ class AdaptiveMetacognitiveEngine {
 // ====== Integration: Hook all 3 modules into the existing system ======
 async function initPhase7() {
     // Wait for core systems
-    const waitFor = (name, timeout = 15000) => new Promise((resolve, reject) => {
+    const waitFor = (name, timeout = 30000) => new Promise((resolve, reject) => {
         const start = Date.now();
         const check = () => {
             if (window[name]) return resolve(window[name]);
@@ -17643,7 +17659,7 @@ async function initPhase7() {
         window.enhancedCompressor = new EnhancedMemoryCompressor();
 
         // Wrap UltimateMemorySystem.coldCompress with enhanced version
-        const ums = await waitFor('ultimateMemorySystem', 12000);
+        const ums = await waitFor('ultimateMemorySystem', 30000);
         if (ums && typeof ums.coldCompress === 'function') {
             const origColdCompress = ums.coldCompress.bind(ums);
             ums.coldCompress = function(memory) {
@@ -17664,7 +17680,7 @@ async function initPhase7() {
         }
 
         // ---- Module 2: HighPerformanceAssociationEngine ----
-        const mi = await waitFor('memoryImportance', 12000).catch(() => null);
+        const mi = await waitFor('memoryImportance', 25000).catch(() => null);
         const kb = window.kbManager || null;
         if (mi && kb) {
             window.hpAssociationEngine = new HighPerformanceAssociationEngine(kb, mi);
@@ -19109,5 +19125,487 @@ window.addEventListener('beforeunload', function() {
 window.__PATCH_APPLIED = true;
 console.log('✅ 紧急修复补丁已全部应用!');
 </script>
+
+<script>
+// ==================== 主动追问系统 ====================
+
+// 如果 escapeHtml 不存在，定义它
+if (typeof escapeHtml !== 'function' && typeof window.escapeHtml !== 'function') {
+    window.escapeHtml = function(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+}
+
+class ActiveAskingSystem {
+    constructor() {
+        this.scenarios = {
+            LOW_CONFIDENCE: {
+                name: '低置信度',
+                threshold: 0.6,
+                template: (query, missingInfo) => `关于「${query}」，我找到的信息置信度较低（${Math.round(missingInfo.confidence * 100)}%）。\n\n能告诉我更多关于 **${missingInfo.keywords?.join('、') || '这个主题'}** 的信息吗？这样我以后能回答得更准确。`
+            },
+            AMBIGUOUS_QUERY: {
+                name: '模糊查询',
+                threshold: 0.4,
+                template: (query, options) => `您说的「${query}」可能有多种理解：\n\n${options.map((o, i) => `${i+1}. ${o}`).join('\n')}\n\n请问您指的是哪一种？`
+            },
+            MISSING_CONTEXT: {
+                name: '缺少上下文',
+                threshold: 0.3,
+                template: (query, context) => `关于「${query}」，我需要更多信息才能准确回答：\n\n${context.questions?.map(q => `• ${q}`).join('\n') || '• 您能提供更多背景吗？'}`
+            },
+            NEW_CONCEPT: {
+                name: '新概念检测',
+                threshold: 0.2,
+                template: (concept) => `「${concept}」是我第一次遇到的词！能教教我这个概念的含义吗？我会记住并用于未来的回答。`
+            },
+            INCOMPLETE_ANSWER: {
+                name: '回答不完整',
+                threshold: 0.5,
+                template: (query, missingAspects) => `我刚才的回答可能不够完整。关于「${query}」，您还想了解：\n\n${missingAspects.map((a, i) => `${i+1}. ${a}`).join('\n')}\n\n请告诉我您的具体需求。`
+            }
+        };
+
+        this.cooldown = {
+            enabled: true,
+            duration: 5 * 60 * 1000,
+            lastAskTime: {},
+            questionCount: {}
+        };
+
+        this.userPreference = {
+            acceptAsking: true,
+            preferredFrequency: 'normal'
+        };
+
+        this.stats = {
+            totalAsks: 0,
+            acceptedAsks: 0,
+            rejectedAsks: 0,
+            learnedFromAsks: 0
+        };
+
+        this.loadPreferences();
+        this.setupEventListeners();
+    }
+
+    loadPreferences() {
+        const saved = localStorage.getItem('active_asking_prefs');
+        if (saved) {
+            try {
+                const prefs = JSON.parse(saved);
+                this.userPreference = { ...this.userPreference, ...prefs };
+            } catch(e) {}
+        }
+    }
+
+    savePreferences() {
+        localStorage.setItem('active_asking_prefs', JSON.stringify(this.userPreference));
+    }
+
+    setupEventListeners() {
+        document.addEventListener('click', (e) => {
+            const askCard = e.target.closest('.ask-card');
+            if (!askCard) return;
+
+            const action = e.target.closest('.ask-action');
+            if (!action) return;
+
+            const askId = askCard.dataset.askId;
+            const response = action.dataset.response;
+
+            if (response === 'answer') {
+                this.handleUserAnswer(askId, askCard);
+            } else if (response === 'skip') {
+                this.handleUserSkip(askId);
+            } else if (response === 'never') {
+                this.disableAsking();
+            }
+        });
+    }
+
+    async shouldAsk(context) {
+        if (!this.userPreference.acceptAsking) return false;
+
+        const { query, ragResults, confidence, responseText, chatId } = context;
+
+        if (this.cooldown.enabled) {
+            const lastAsk = this.cooldown.lastAskTime[chatId] || 0;
+            const askCount = this.cooldown.questionCount[chatId] || 0;
+            if (Date.now() - lastAsk < this.cooldown.duration && askCount >= 2) {
+                return false;
+            }
+        }
+
+        const detectedScenario = await this.detectScenario({
+            query, ragResults, confidence, responseText
+        });
+
+        if (detectedScenario) {
+            return {
+                shouldAsk: true,
+                scenario: detectedScenario.name,
+                data: detectedScenario.data,
+                template: this.scenarios[detectedScenario.name].template
+            };
+        }
+
+        return false;
+    }
+
+    async detectScenario({ query, ragResults, confidence, responseText }) {
+        if (confidence && confidence < this.scenarios.LOW_CONFIDENCE.threshold) {
+            const missingInfo = this.extractMissingInfo(query, ragResults);
+            return { name: 'LOW_CONFIDENCE', data: { confidence, keywords: missingInfo.keywords } };
+        }
+
+        const ambiguousKeywords = ['什么', '哪个', '如何', '怎样', '是否', '能不能'];
+        if (ambiguousKeywords.some(kw => query.includes(kw)) && (!ragResults || ragResults.length < 3)) {
+            const options = await this.generateAmbiguityOptions(query);
+            if (options.length >= 2) {
+                return { name: 'AMBIGUOUS_QUERY', data: { options } };
+            }
+        }
+
+        if (query.length < 8 && (!ragResults || ragResults.length === 0)) {
+            const questions = this.generateContextQuestions(query);
+            return { name: 'MISSING_CONTEXT', data: { questions } };
+        }
+
+        const newConcepts = await this.detectNewConcepts(query, ragResults);
+        if (newConcepts.length > 0 && newConcepts[0].length <= 15) {
+            return { name: 'NEW_CONCEPT', data: { concept: newConcepts[0] } };
+        }
+
+        if (responseText && responseText.length < 200 && query.length > 30) {
+            const missingAspects = await this.suggestMissingAspects(query, responseText);
+            if (missingAspects.length > 0) {
+                return { name: 'INCOMPLETE_ANSWER', data: { missingAspects } };
+            }
+        }
+
+        return null;
+    }
+
+    extractMissingInfo(query, ragResults) {
+        const keywords = [];
+        const nounMatches = query.match(/[\u4e00-\u9fa5]{2,}/g) || [];
+        keywords.push(...nounMatches.slice(0, 3));
+
+        if (ragResults && ragResults.length > 0) {
+            const ragContent = ragResults.map(r => r.text || '').join(' ').toLowerCase();
+            const queryWords = query.toLowerCase().split(/\s+/);
+            const missing = queryWords.filter(w => w.length > 2 && !ragContent.includes(w) && !this.isStopword(w));
+            keywords.push(...missing.slice(0, 2));
+        }
+
+        return { keywords: [...new Set(keywords)] };
+    }
+
+    async generateAmbiguityOptions(query) {
+        const options = [];
+        if (query.includes('API')) {
+            options.push('REST API', 'WebSocket API', 'GraphQL API', '本地 API');
+        } else if (query.includes('模型')) {
+            options.push('大语言模型 (LLM)', '嵌入模型 (Embedding)', '视觉模型 (Vision)', '分类模型');
+        } else if (query.includes('部署')) {
+            options.push('本地部署', '云服务部署', 'Docker 容器化', 'Serverless');
+        } else {
+            options.push('技术实现', '最佳实践', '常见问题', '性能优化');
+        }
+        return options.slice(0, 4);
+    }
+
+    generateContextQuestions(query) {
+        const questions = [];
+        if (query.includes('怎么') || query.includes('如何')) {
+            questions.push('您具体想实现什么功能？');
+            questions.push('您遇到了什么具体问题？');
+        } else if (query.includes('什么是')) {
+            questions.push('您是想了解基础概念还是深入原理？');
+        } else {
+            questions.push('您能描述一下您的具体场景吗？');
+            questions.push('您希望我以什么方式回答？');
+        }
+        return questions;
+    }
+
+    async detectNewConcepts(query, ragResults) {
+        const words = query.match(/[\u4e00-\u9fa5]{2,}/g) || [];
+        if (!ragResults || ragResults.length === 0) {
+            return words.filter(w => w.length >= 2 && w.length <= 10);
+        }
+        const ragContent = ragResults.map(r => (r.text || '')).join(' ').toLowerCase();
+        return words.filter(w => !ragContent.includes(w.toLowerCase()) && !this.isCommonWord(w));
+    }
+
+    async suggestMissingAspects(query, responseText) {
+        const aspects = [];
+        if (query.includes('代码') && !responseText.includes('```')) aspects.push('代码示例');
+        if (query.includes('对比') && !responseText.includes('对比')) aspects.push('详细对比分析');
+        if (query.includes('步骤') && !responseText.match(/\d+\./)) aspects.push('分步骤说明');
+        if (query.length > 50 && responseText.length < 300) aspects.push('更深入的技术细节');
+        if (aspects.length === 0) aspects.push('实际应用案例', '注意事项', '相关资源推荐');
+        return aspects.slice(0, 3);
+    }
+
+    isStopword(word) {
+        const stopwords = ['的', '了', '是', '在', '和', '与', '或', '但', '因为', '所以', '这', '那', '有', '我', '你', '他', '她', '它', '们', '什么', '怎么', '为什么', '哪个', '如何'];
+        return stopwords.includes(word.toLowerCase());
+    }
+
+    isCommonWord(word) {
+        const common = ['问题', '答案', '内容', '信息', '知识', '学习', '使用', '方法', '方式', '时候', '情况'];
+        return common.includes(word);
+    }
+
+    async generateAskUI(askInfo, chatId) {
+        const { scenario, data, template } = askInfo;
+        let message = '';
+        const escapeHtml = window.escapeHtml;
+
+        switch(scenario) {
+            case 'LOW_CONFIDENCE':
+                message = template(data.query || '这个问题', { confidence: data.confidence, keywords: data.keywords });
+                break;
+            case 'AMBIGUOUS_QUERY':
+                message = template(data.query || '这个问题', data.options);
+                break;
+            case 'MISSING_CONTEXT':
+                message = template(data.query || '这个问题', { questions: data.questions });
+                break;
+            case 'NEW_CONCEPT':
+                message = template(data.concept);
+                break;
+            case 'INCOMPLETE_ANSWER':
+                message = template(data.query || '这个问题', data.missingAspects);
+                break;
+            default:
+                message = '关于「' + (data.query || '您的问题') + '」，我需要更多信息才能更好地帮助您。能补充一些细节吗？';
+        }
+
+        const askId = 'ask_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+
+        const askCardHtml = '<div class="ask-card" data-ask-id="' + askId + '" data-scenario="' + scenario + '" style="background: var(--knowledge-bg); border-radius: 16px; padding: 16px; margin: 12px 0; border-left: 4px solid var(--primary-color); animation: slideIn 0.3s ease;">' +
+            '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">' +
+            '<span style="font-size: 20px;">🤔</span>' +
+            '<span style="font-weight: 600; color: var(--primary-color);">主动学习模式</span>' +
+            '</div>' +
+            '<div style="margin-bottom: 16px; line-height: 1.6;">' + escapeHtml(message) + '</div>' +
+            '<div style="display: flex; gap: 12px; flex-wrap: wrap;">' +
+            '<button class="ask-action" data-response="answer" style="background: var(--primary-color); color: white; border: none; padding: 8px 20px; border-radius: 24px; cursor: pointer; font-size: 13px;">💬 我来回答</button>' +
+            '<button class="ask-action" data-response="skip" style="background: var(--ai-msg-bg); border: 1px solid var(--border-color); padding: 8px 20px; border-radius: 24px; cursor: pointer; font-size: 13px;">⏭️ 跳过本次</button>' +
+            '<button class="ask-action" data-response="never" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 12px; padding: 8px 12px;">🔇 不再主动提问</button>' +
+            '</div></div>';
+
+        this.pendingAsks = this.pendingAsks || new Map();
+        this.pendingAsks.set(askId, { scenario, data, chatId, timestamp: Date.now(), query: data.query });
+
+        if (this.cooldown.enabled) {
+            this.cooldown.lastAskTime[chatId] = Date.now();
+            this.cooldown.questionCount[chatId] = (this.cooldown.questionCount[chatId] || 0) + 1;
+        }
+
+        this.stats.totalAsks++;
+        return askCardHtml;
+    }
+
+    async handleUserAnswer(askId, askCard) {
+        const pending = this.pendingAsks?.get(askId);
+        if (!pending) return;
+
+        const answerContainer = document.createElement('div');
+        answerContainer.style.cssText = 'margin-top: 12px; padding: 12px; background: var(--chat-bg); border-radius: 12px; animation: fadeIn 0.2s ease;';
+        answerContainer.innerHTML = '<div style="margin-bottom: 8px; font-size: 13px; font-weight: 500;">📝 补充信息：</div>' +
+            '<textarea id="askAnswerInput" rows="2" style="width: 100%; padding: 10px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-primary); font-size: 13px; resize: vertical;" placeholder="输入您想补充的信息..."></textarea>' +
+            '<div style="display: flex; gap: 8px; margin-top: 10px;">' +
+            '<button id="submitAnswerBtn" style="background: var(--success-color); color: white; border: none; padding: 6px 16px; border-radius: 20px; cursor: pointer;">✓ 提交</button>' +
+            '<button id="cancelAnswerBtn" style="background: none; border: 1px solid var(--border-color); padding: 6px 16px; border-radius: 20px; cursor: pointer;">取消</button>' +
+            '</div>';
+
+        const originalContent = askCard.querySelector('div:last-child');
+        if (originalContent) originalContent.replaceWith(answerContainer);
+
+        const submitBtn = answerContainer.querySelector('#submitAnswerBtn');
+        const cancelBtn = answerContainer.querySelector('#cancelAnswerBtn');
+        const textarea = answerContainer.querySelector('#askAnswerInput');
+
+        submitBtn.onclick = async () => {
+            const userAnswer = textarea.value.trim();
+            if (!userAnswer) { if (typeof showToast === 'function') showToast('请输入一些信息'); return; }
+            await this.saveLearnedKnowledge(pending, userAnswer);
+            askCard.remove();
+            this.stats.acceptedAsks++;
+            this.stats.learnedFromAsks++;
+            if (typeof showToast === 'function') showToast('✅ 感谢您的补充！我已记住这些信息。');
+            this.triggerReanswer(pending.query, userAnswer);
+        };
+
+        cancelBtn.onclick = () => { askCard.remove(); this.stats.rejectedAsks++; };
+        this.pendingAsks.delete(askId);
+    }
+
+    handleUserSkip(askId) {
+        const askCard = document.querySelector('.ask-card[data-ask-id="' + askId + '"]');
+        if (askCard) askCard.remove();
+        this.stats.rejectedAsks++;
+        this.pendingAsks?.delete(askId);
+    }
+
+    disableAsking() {
+        this.userPreference.acceptAsking = false;
+        this.savePreferences();
+        if (typeof showToast === 'function') showToast('🔇 已关闭主动提问，可在设置中重新开启');
+        document.querySelectorAll('.ask-card').forEach(card => card.remove());
+    }
+
+    async saveLearnedKnowledge(pending, userAnswer) {
+        const { scenario, data } = pending;
+        let knowledgeContent = '【主动学习记录】\n场景: ' + scenario + '\n原问题: ' + (data.query || '未知') + '\n用户补充: ' + userAnswer + '\n学习时间: ' + new Date().toLocaleString() + '\n';
+
+        if (typeof window.kbManager !== 'undefined' && window.kbManager) {
+            try {
+                const fileName = 'learned_' + Date.now() + '.md';
+                const file = new File([knowledgeContent], fileName, { type: 'text/markdown' });
+                await window.kbManager.addFiles([file]);
+            } catch(e) { console.warn('保存学习内容失败:', e); }
+        }
+
+        if (typeof window.memoryManager !== 'undefined' && window.memoryManager && typeof window.memoryManager.remember === 'function') {
+            await window.memoryManager.remember('用户教我: ' + userAnswer.substring(0, 200), 'active_learning');
+        }
+
+        if (scenario === 'NEW_CONCEPT' && data.concept) this.boostConceptWeight(data.concept);
+    }
+
+    boostConceptWeight(concept) {
+        const concepts = JSON.parse(localStorage.getItem('learned_concepts') || '{}');
+        concepts[concept] = (concepts[concept] || 0) + 1;
+        localStorage.setItem('learned_concepts', JSON.stringify(concepts));
+    }
+
+    async triggerReanswer(originalQuery, newInfo) {
+        const enhancedQuery = originalQuery + '\n\n[补充信息] ' + newInfo;
+        const inputElement = document.getElementById('userInput');
+        if (inputElement && typeof window.sendMessage === 'function') {
+            inputElement.value = enhancedQuery;
+            setTimeout(() => { window.sendMessage(); }, 500);
+        }
+    }
+
+    getStats() {
+        return {
+            ...this.stats,
+            acceptanceRate: this.stats.totalAsks > 0 ? (this.stats.acceptedAsks / this.stats.totalAsks * 100).toFixed(1) + '%' : '0%',
+            userPreference: this.userPreference
+        };
+    }
+
+    resetCooldown(chatId) {
+        if (chatId) { delete this.cooldown.lastAskTime[chatId]; delete this.cooldown.questionCount[chatId]; }
+        else { this.cooldown.lastAskTime = {}; this.cooldown.questionCount = {}; }
+    }
+}
+
+// ========== 集成到现有发送流程 ==========
+(function() {
+    if (typeof window.sendMessage !== 'function') {
+        console.warn('[ActiveAsking] sendMessage 不存在，延迟初始化');
+        setTimeout(arguments.callee, 500);
+        return;
+    }
+
+    const ___originalSendMessage = window.sendMessage;
+    window.activeAskingSystem = new ActiveAskingSystem();
+
+    window.sendMessage = async function() {
+        const userInput = document.getElementById('userInput')?.value.trim();
+        const result = await ___originalSendMessage();
+
+        setTimeout(async () => {
+            const chat = window.chats?.find(c => c.id === window.currentChatId);
+            const lastResponse = chat?.messages[chat.messages.length - 1]?.content || '';
+            const confidence = window._lastResponseConfidence || 0.5;
+
+            const askDecision = await window.activeAskingSystem.shouldAsk({
+                query: userInput,
+                ragResults: window._lastRagResults,
+                confidence: confidence,
+                responseText: lastResponse,
+                chatId: window.currentChatId
+            });
+
+            if (askDecision && askDecision.shouldAsk) {
+                const askHtml = await window.activeAskingSystem.generateAskUI({
+                    scenario: askDecision.scenario,
+                    data: { ...askDecision.data, query: userInput },
+                    template: askDecision.template
+                }, window.currentChatId);
+
+                const container = document.getElementById('chatContainer');
+                if (container && askHtml) {
+                    container.insertAdjacentHTML('beforeend', askHtml);
+                    if (typeof scrollToBottom === 'function') scrollToBottom();
+                }
+            }
+        }, 1000);
+
+        return result;
+    };
+
+    window.ActiveAskingSystem = ActiveAskingSystem;
+    window.getAskingStats = () => window.activeAskingSystem?.getStats();
+    window.resetAskingCooldown = (chatId) => window.activeAskingSystem?.resetCooldown(chatId);
+
+    // ========== 设置面板 ==========
+    function addAskingSettings() {
+        const settingsModal = document.getElementById('settingsModal');
+        if (!settingsModal) return;
+        const modalBody = settingsModal.querySelector('.modal-body');
+        if (!modalBody || document.getElementById('askingSettings')) return;
+
+        const section = document.createElement('div');
+        section.id = 'askingSettings';
+        section.style.cssText = 'margin-top: 16px; padding: 16px; background: var(--ai-msg-bg); border-radius: 16px;';
+        section.innerHTML = '<h4>🤔 主动学习设置</h4>' +
+            '<div style="margin-bottom: 12px;">' +
+            '<label style="display: flex; justify-content: space-between; align-items: center;">' +
+            '<span>🔔 允许AI主动提问</span>' +
+            '<label class="switch"><input type="checkbox" id="activeAskingToggle" ' + (window.activeAskingSystem?.userPreference.acceptAsking !== false ? 'checked' : '') + '><span class="slider"></span></label>' +
+            '</label></div>' +
+            '<div style="margin-bottom: 12px;">' +
+            '<label>📊 追问频率</label>' +
+            '<select id="askingFrequency" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">' +
+            '<option value="low">低频 (减少打扰)</option>' +
+            '<option value="normal" selected>正常 (平衡)</option>' +
+            '<option value="high">高频 (积极学习)</option></select></div>' +
+            '<div style="font-size: 11px; color: var(--text-secondary);">💡 AI会在不确定或需要更多信息时主动提问，帮助更好地回答问题</div>';
+
+        const lastSection = modalBody.querySelector('.voice-settings-panel:last-child');
+        if (lastSection) { lastSection.insertAdjacentElement('afterend', section); }
+        else { modalBody.appendChild(section); }
+
+        const toggle = document.getElementById('activeAskingToggle');
+        if (toggle && window.activeAskingSystem) {
+            toggle.addEventListener('change', (e) => { window.activeAskingSystem.userPreference.acceptAsking = e.target.checked; window.activeAskingSystem.savePreferences(); });
+        }
+        const freqSelect = document.getElementById('askingFrequency');
+        if (freqSelect && window.activeAskingSystem) {
+            freqSelect.addEventListener('change', (e) => {
+                window.activeAskingSystem.userPreference.preferredFrequency = e.target.value;
+                const durations = { low: 10 * 60 * 1000, normal: 5 * 60 * 1000, high: 2 * 60 * 1000 };
+                window.activeAskingSystem.cooldown.duration = durations[e.target.value];
+                window.activeAskingSystem.savePreferences();
+            });
+        }
+    }
+
+    setTimeout(addAskingSettings, 3000);
+    console.log('✅ 主动追问系统已加载');
+})();
+</script>
+
 </body>
 </html>
