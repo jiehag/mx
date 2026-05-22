@@ -1711,10 +1711,18 @@
                 const modelName = modelInput?.value;
 
                 if (apiKey && apiKey.trim()) {
+                    // ✅ Fix #38: 同步更新全局 API_KEY,确保 testConnection 等函数用到最新值
+                    API_KEY = apiKey;
                     apiKeyStorage.saveApiKey(currentProvider, apiKey, apiUrl, modelName);
                     // ✅ 按 provider 分别保存到独立 key,防止不同供应商的 Key 互相覆盖
                     localStorage.setItem('api_key_' + currentProvider, apiKey);
                     localStorage.setItem('deepseek_api_key', apiKey); // 兼容旧代码
+                    // ✅ 同步更新主设置对象
+                    try {
+                        const _s = JSON.parse(localStorage.getItem('qwen_settings_enhanced_v5') || '{}');
+                        _s.apiKey = apiKey;
+                        localStorage.setItem('qwen_settings_enhanced_v5', JSON.stringify(_s));
+                    } catch(_e) {}
                     console.log(`🔐 API Key 已自动保存 (${currentProvider})`);
                 }
             };
@@ -13056,7 +13064,8 @@ ${citationExamples}
                     if (apiKeyInput && saved && saved.key) {
                         apiKeyInput.value = saved.key;
                     } else if (apiKeyInput && !saved) {
-                        apiKeyInput.value = '';
+                        // ✅ Fix #38: apiKeyStorage 无记录时用全局 API_KEY,不清空
+                        apiKeyInput.value = API_KEY || '';
                     }
                 }
                 const hintEl=document.getElementById('ragModeHint');
