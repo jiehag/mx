@@ -395,8 +395,9 @@
         .pause-btn { background: #ffaa00; color: white; display: none; }
         .resume-btn { background: #ffaa00; color: white; display: none; }
         .continue-gen-btn { background: var(--continue-color); color: white; display: none; }
-        .typing-indicator { display: inline-flex; gap: 4px; padding: 8px 0; }
-        .typing-indicator span { width: 8px; height: 8px; background-color: var(--text-secondary); border-radius: 50%; animation: bounce 1.4s infinite; }
+        .typing-indicator { display: inline-flex; align-items: center; gap: 4px; padding: 8px 0; }
+        .typing-indicator span:not(.typing-text) { width: 8px; height: 8px; background-color: var(--text-secondary); border-radius: 50%; animation: bounce 1.4s infinite; }
+        .typing-indicator .typing-text { width: auto; height: auto; background: none; border-radius: 0; animation: none; font-size: 13px; color: var(--text-secondary); margin-left: 6px; font-style: italic; }
         @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
         .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 12px 20px; border-radius: 40px; z-index: 2000; animation: fadeOut 2s ease; pointer-events: none; }
         @keyframes fadeOut { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
@@ -611,6 +612,23 @@
     max-height: 0 !important;
     overflow-y: hidden !important;
 }
+        /* ========== 上下文超限提示模态框 ========== */
+        .context-exceeded-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1500; backdrop-filter: blur(4px); }
+        .context-exceeded-content { background: var(--sidebar-bg); border-radius: 28px; width: 540px; max-width: 92%; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,0.15); }
+        .context-exceeded-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
+        .context-exceeded-header h3 { font-size: 16px; font-weight: 600; margin: 0; }
+        .context-exceeded-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+        .context-exceeded-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--border-color); }
+        .ctx-option { display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s; margin-bottom: 12px; }
+        .ctx-option:hover { border-color: var(--primary-color); background: rgba(97,92,237,0.05); }
+        .ctx-option-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+        .ctx-option-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+        .ctx-option-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+        .ctx-btn { padding: 10px 20px; border-radius: 24px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+        .ctx-btn-primary { background: var(--primary-color); color: white; }
+        .ctx-btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+        .ctx-btn-secondary { background: var(--ai-msg-bg); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .ctx-btn-secondary:hover { border-color: var(--primary-color); }
     </style>
 </head>
 <body>
@@ -3815,6 +3833,110 @@ function clearAllAttachments() {
                     }
                 });
             });
+        }
+
+        // ==================== 上下文超限处理 ====================
+        function showContextExceededPrompt(userText, chatObj, onContinue) {
+            const existing = document.querySelector('.context-exceeded-overlay');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.className = 'context-exceeded-overlay';
+            overlay.style.display = 'flex';
+            overlay.innerHTML = `
+                <div class="context-exceeded-content">
+                    <div class="context-exceeded-header">
+                        <h3>⚠️ 上下文即将超限</h3>
+                        <button class="icon-btn" onclick="this.closest('.context-exceeded-overlay').remove()" style="font-size:18px;background:none;border:none;cursor:pointer;color:var(--text-secondary);">✕</button>
+                    </div>
+                    <div class="context-exceeded-body">
+                        <p style="margin-bottom:16px;font-size:14px;color:var(--text-secondary);">
+                            当前对话的 token 使用量已接近上限，继续对话可能导致内容被截断或出错。建议创建新对话并延续上下文。
+                        </p>
+                        <div class="ctx-option" id="ctxCreateNew">
+                            <div class="ctx-option-icon">🆕</div>
+                            <div>
+                                <div class="ctx-option-title">创建新对话并延续</div>
+                                <div class="ctx-option-desc">自动创建新对话，携带最近 5 条消息作为上下文摘要，当前问题会自动带入。</div>
+                            </div>
+                        </div>
+                        <div class="ctx-option" id="ctxIncrease">
+                            <div class="ctx-option-icon">📏</div>
+                            <div>
+                                <div class="ctx-option-title">增加上下文长度</div>
+                                <div class="ctx-option-desc">在设置中调大「上下文长度」（需模型支持更大上下文）。</div>
+                            </div>
+                        </div>
+                        <div class="ctx-option" id="ctxSendAnyway">
+                            <div class="ctx-option-icon">▶️</div>
+                            <div>
+                                <div class="ctx-option-title">仍然发送</div>
+                                <div class="ctx-option-desc">忽略警告直接发送，早期消息可能被截断。</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="context-exceeded-footer">
+                        <button class="ctx-btn ctx-btn-secondary" onclick="this.closest('.context-exceeded-overlay').remove()">取消</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+            document.getElementById('ctxCreateNew')?.addEventListener('click', async () => {
+                overlay.remove();
+                await continueInNewChat(userText, chatObj);
+                if (onContinue) onContinue();
+            });
+            document.getElementById('ctxIncrease')?.addEventListener('click', () => {
+                overlay.remove();
+                showToast('请在设置中调整「上下文长度」参数');
+                if (typeof openSettingsModal === 'function') openSettingsModal();
+            });
+            document.getElementById('ctxSendAnyway')?.addEventListener('click', () => {
+                overlay.remove();
+                // 不调用 onContinue：上下文仍然满，重新发送会再次报错
+                // 用户可自行删减对话后重试
+                showToast('💡 请删减部分对话或增加上下文长度后重试');
+            });
+        }
+
+        async function continueInNewChat(userText, chatObj) {
+            try {
+                const nc = {
+                    id: Date.now().toString(),
+                    title: '新对话（延续）',
+                    messages: [],
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    isMainBranch: true,
+                    branchInfo: { rootId: null, parentId: null, branchDepth: 0, childrenIds: [] }
+                };
+                nc.branchInfo.rootId = nc.id;
+
+                // 取最近 5 条消息作为上下文（排除最后一条，即当前用户消息）
+                const recentMsgs = (chatObj?.messages || []).slice(-6, -1);
+                if (recentMsgs.length > 0) {
+                    const summary = recentMsgs.map(m => `${m.role === 'user' ? '用户' : 'AI'}：${(m.content || '').slice(0, 100)}`).join('\n');
+                    nc.messages.push({ role: 'system', content: `【对话延续提示】以下是上一段对话的最新上下文，请据此理解并回答用户的新问题：\n${summary}` });
+                }
+                // 当前用户消息单独追加（不重复）
+                if (userText?.trim()) {
+                    nc.messages.push({ role: 'user', content: userText.trim() });
+                    nc.title = userText.trim().slice(0, 20) || '延续对话';
+                }
+
+                chats.unshift(nc);
+                await saveChat(nc);
+                await loadChat(nc.id);
+                if (window.innerWidth <= 768) toggleSidebar();
+                renderBranchTree();
+                showToast('✅ 已创建新对话并延续上下文');
+                setTimeout(() => { const inp = document.getElementById('userInput'); if (inp) { inp.focus(); } }, 300);
+            } catch (e) {
+                console.error('continueInNewChat error:', e);
+                showToast('创建新对话失败：' + e.message);
+            }
         }
 
         // ==================== 获取响应策略 ====================
@@ -8048,7 +8170,7 @@ ${content}
                 if (ld) ld.remove();
                 let indicator = document.createElement('div');
                 indicator.className = 'typing-indicator';
-                indicator.innerHTML = '<span></span><span></span><span></span>';
+                indicator.innerHTML = '<span></span><span></span><span></span><span class="typing-text">正在思考中...</span>';
                 contentDiv.appendChild(indicator);
             }
 
@@ -8310,6 +8432,8 @@ ${content}
                 if (resume) resume.style.display = 'none';
                 if (contGen) contGen.style.display = 'none';
             } else {
+                // ✅ Clean up any lingering typing indicators when generation ends
+                document.querySelectorAll('.typing-indicator').forEach(el => el.remove());
                 if (send) { send.style.display = 'flex'; updateSendButtonState(); }
                 if (stop) stop.style.display = 'none';
                 if (pause) pause.style.display = 'none';
@@ -10904,7 +11028,7 @@ ${citationExamples}
             if (contentDiv) {
                 const indicator = document.createElement('div');
                 indicator.className = 'typing-indicator';
-                indicator.innerHTML = '<span></span><span></span><span></span>';
+                indicator.innerHTML = '<span></span><span></span><span></span><span class="typing-text">正在思考中...</span>';
                 contentDiv.appendChild(indicator);
             }
 
@@ -11115,6 +11239,19 @@ ${citationExamples}
             const onError = (err) => {
                 console.error('[Send] 错误:', err);
                 let errMsg = err instanceof Error ? err.message : String(err);
+                // ========== 上下文超限处理 ==========
+                if (errMsg.includes('上下文不足') || errMsg.includes('上下文几乎已满') || errMsg.includes('exceed_context_size') || errMsg.includes('exceeds the available context') || errMsg.includes('n_ctx')) {
+                    if (currentStreamingDiv) {
+                        const indicator = currentStreamingDiv.querySelector('.typing-indicator');
+                        if (indicator) indicator.remove();
+                        currentStreamingDiv.remove();
+                        currentStreamingDiv = null;
+                    }
+                    setGeneratingState(false);
+                    isPaused = false;
+                    showContextExceededPrompt(text, chat);
+                    return;
+                }
                 // FIX: Save partial AI response to chat.messages on abort/error
                 // Prevents context loss when user sends follow-up after stop
                 if (currentStreamingFullText && currentStreamingFullText.trim().length > 50) {
@@ -18527,7 +18664,7 @@ window.continueGeneration = async function() {
     if (indicator) indicator.remove();
     indicator = document.createElement('div');
     indicator.className = 'typing-indicator';
-    indicator.innerHTML = '<span></span><span></span><span></span>';
+    indicator.innerHTML = '<span></span><span></span><span></span><span class="typing-text">正在思考中...</span>';
     if (contentDiv) contentDiv.appendChild(indicator);
 
     let newPart = '';
