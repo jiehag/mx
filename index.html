@@ -20862,6 +20862,1132 @@ class ActiveAskingSystem {
     console.log('✅ 主动追问系统已加载');
 })();
 </script>
+    <!-- ==================== 网络搜索 CORS 修复补丁 v2.0 ==================== -->
+    <script>
+    (function() {
+        'use strict';
+        
+        // 检查是否已应用补丁
+        if (window.__corsPatchApplied) return;
+        window.__corsPatchApplied = true;
+        
+        // ========== 1. 增强版 CORS 代理池（支持多个备用代理）==========
+        const CORS_PROXIES = [
+            { url: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`, name: 'allorigins', timeout: 8000 },
+            { url: (u) => `https://cors-anywhere.herokuapp.com/${u}`, name: 'cors-anywhere', timeout: 10000 },
+            { url: (u) => `https://proxy.cors.sh/${u}`, name: 'cors.sh', timeout: 8000 },
+            { url: (u) => `https://cors.bridged.cc/${u}`, name: 'bridged', timeout: 10000 },
+            { url: (u) => `https://cors-proxy.htmldriven.com/?url=${encodeURIComponent(u)}`, name: 'htmldriven', timeout: 8000 },
+            { url: (u) => `https://thingproxy.freeboard.io/fetch/${u}`, name: 'freeboard', timeout: 10000 },
+            { url: (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, name: 'codetabs', timeout: 8000 },
+            { url: (u) => `https://cors.eu.org/${u}`, name: 'cors-eu', timeout: 10000 }
+        ];
+        
+        let currentProxyIndex = 0;
+        let proxyFailCount = new Map();
+        
+        function getBestProxy() {
+            let bestIndex = 0;
+            let bestFailCount = Infinity;
+            for (let i = 0; i < CORS_PROXIES.length; i++) {
+                const failCount = proxyFailCount.get(CORS_PROXIES[i].name) || 0;
+                if (failCount < bestFailCount) {
+                    bestFailCount = failCount;
+                    bestIndex = i;
+                }
+            }
+            currentProxyIndex = bestIndex;
+            return CORS_PROXIES[currentProxyIndex];
+        }
+        
+        function recordProxyFailure(proxyName) {
+            const count = (proxyFailCount.get(proxyName) || 0) + 1;
+            proxyFailCount.set(proxyName, count);
+            if (count > 3) {
+                console.log(`[CORS] 代理 ${proxyName} 失败次数过多，暂时禁用`);
+            }
+        }
+        
+        async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+            let lastError = null;
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    if (attempt > 0) {
+                        currentProxyIndex = (currentProxyIndex + 1) % CORS_PROXIES.length;
+                        await new Promise(r => setTimeout(r, 500 * attempt));
+                    }
+                    const proxy = CORS_PROXIES[currentProxyIndex];
+                    const proxyUrl = proxy.url(url);
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), proxy.timeout);
+                    const response = await fetch(proxyUrl, {
+                        ...options,
+                        signal: controller.signal,
+                        headers: {
+                            'Origin': window.location.origin || 'https://example.com',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            ...options.headers
+                        }
+                    });
+                    clearTimeout(timeoutId);
+                    if (response.ok) {
+                        proxyFailCount.set(proxy.name, Math.max(0, (proxyFailCount.get(proxy.name) || 0) - 1));
+                        return response;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                } catch (error) {
+                    lastError = error;
+                    const proxy = CORS_PROXIES[currentProxyIndex];
+                    recordProxyFailure(proxy.name);
+                    if (typeof addDebugLog === 'function') {
+                        addDebugLog(`[CORS] 代理 ${proxy.name} 尝试 ${attempt + 1}/${maxRetries} 失败: ${error.message}`, 'warning');
+                    }
+                }
+            }
+            throw lastError || new Error('所有代理均失败');
+        }
+        
+        function patchWebSearchEngine() {
+            const checkInterval = setInterval(() => {
+                if (typeof WebSearchEngine !== 'undefined' && WebSearchEngine.prototype) {
+                    clearInterval(checkInterval);
+                    const originalRobustFetch = WebSearchEngine.prototype.robustFetch;
+                    WebSearchEngine.prototype.robustFetch = async function(url, options = {}) {
+                        const startTime = Date.now();
+                        try {
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 5000);
+                            const directResponse = await fetch(url, { 
+                                ...options, 
+                                signal: controller.signal,
+                                mode: 'cors',
+                                credentials: 'omit'
+                            });
+                            clearTimeout(timeoutId);
+                            if (directResponse.ok) {
+                                return directResponse;
+                            }
+                        } catch (e) {
+                            if (typeof addDebugLog === 'function') {
+                                addDebugLog(`[CORS] 直接请求失败: ${e.message}`, 'info');
+                            }
+                        }
+                        try {
+                            const proxyResponse = await fetchWithRetry(url, options);
+                            if (proxyResponse && proxyResponse.ok) {
+                                if (typeof addDebugLog === 'function') {
+                                    addDebugLog(`[CORS] 代理请求成功 (${Date.now() - startTime}ms)`, 'success');
+                                }
+                                return proxyResponse;
+                            }
+                        } catch (proxyError) {
+                            if (typeof addDebugLog === 'function') {
+                                addDebugLog(`[CORS] 所有代理失败: ${proxyError.message}`, 'warning');
+                            }
+                        }
+                        const cacheKey = `cors_fallback_${url.substring(0, 100)}`;
+                        const cached = sessionStorage.getItem(cacheKey);
+                        if (cached) {
+                            try {
+                                const cachedData = JSON.parse(cached);
+                                if (Date.now() - cachedData.timestamp < 3600000) {
+                                    if (typeof addDebugLog === 'function') {
+                                        addDebugLog(`[CORS] 使用缓存降级`, 'info');
+                                    }
+                                    return {
+                                        ok: true,
+                                        json: async () => cachedData.data,
+                                        text: async () => JSON.stringify(cachedData.data)
+                                    };
+                                }
+                            } catch(e) {}
+                        }
+                        throw new Error('无法获取搜索结果，请检查网络连接');
+                    };
+                    if (typeof addDebugLog === 'function') {
+                        addDebugLog('✅ [CORS] WebSearchEngine 已打补丁', 'success');
+                    }
+                }
+            }, 100);
+        }
+        
+        function patchDDGSearch() {
+            const checkInterval = setInterval(() => {
+                if (typeof WebSearchEngine !== 'undefined' && WebSearchEngine.prototype) {
+                    clearInterval(checkInterval);
+                    const originalSearchDDG = WebSearchEngine.prototype._searchDDGInstantAnswer;
+                    WebSearchEngine.prototype._searchDDGInstantAnswer = async function(query) {
+                        const results = [];
+                        try {
+                            const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1&t=ai_assistant`;
+                            const response = await this.robustFetch(url);
+                            if (response && response.ok) {
+                                const data = await response.json();
+                                if (data.Abstract) {
+                                    results.push({
+                                        title: data.Heading || query,
+                                        snippet: data.Abstract.substring(0, this.snippetLength || 300),
+                                        url: data.AbstractURL || '',
+                                        source: data.AbstractSource || 'DuckDuckGo'
+                                    });
+                                }
+                                if (data.RelatedTopics) {
+                                    for (const topic of data.RelatedTopics.slice(0, 5)) {
+                                        if (topic.Text && topic.FirstURL) {
+                                            results.push({
+                                                title: topic.Text.substring(0, 80),
+                                                snippet: topic.Text.substring(0, this.snippetLength || 300),
+                                                url: topic.FirstURL,
+                                                source: 'DuckDuckGo'
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            if (typeof addDebugLog === 'function') {
+                                addDebugLog(`[CORS] DDG API 失败: ${e.message}`, 'info');
+                            }
+                        }
+                        if (results.length === 0) {
+                            try {
+                                const wikiUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=5&format=json&origin=*`;
+                                const wikiResponse = await this.robustFetch(wikiUrl);
+                                if (wikiResponse && wikiResponse.ok) {
+                                    const wikiData = await wikiResponse.json();
+                                    const wikiResults = wikiData.query?.search || [];
+                                    for (const item of wikiResults.slice(0, 3)) {
+                                        results.push({
+                                            title: item.title,
+                                            snippet: (item.snippet || '').replace(/<[^>]+>/g, '').substring(0, this.snippetLength || 300),
+                                            url: `https://zh.wikipedia.org/wiki/${encodeURIComponent(item.title)}`,
+                                            source: 'Wikipedia'
+                                        });
+                                    }
+                                }
+                            } catch (e) {}
+                        }
+                        return results;
+                    };
+                    if (typeof addDebugLog === 'function') {
+                        addDebugLog('✅ [CORS] DuckDuckGo 搜索已优化', 'success');
+                    }
+                }
+            }, 100);
+        }
+        
+        function addSearchCache() {
+            const checkInterval = setInterval(() => {
+                if (typeof WebSearchEngine !== 'undefined' && WebSearchEngine.prototype) {
+                    clearInterval(checkInterval);
+                    const originalSearch = WebSearchEngine.prototype.search;
+                    WebSearchEngine.prototype.search = async function(query) {
+                        const cacheKey = `search_${this.engine}_${query.toLowerCase().trim()}`;
+                        try {
+                            const cached = sessionStorage.getItem(cacheKey);
+                            if (cached) {
+                                const { results, timestamp } = JSON.parse(cached);
+                                if (Date.now() - timestamp < 10 * 60 * 1000) {
+                                    if (typeof addDebugLog === 'function') {
+                                        addDebugLog(`[CORS] 使用缓存结果: "${query}"`, 'success');
+                                    }
+                                    return results;
+                                }
+                            }
+                        } catch(e) {}
+                        const results = await originalSearch.call(this, query);
+                        if (results && results.length > 0) {
+                            try {
+                                sessionStorage.setItem(cacheKey, JSON.stringify({
+                                    results: results,
+                                    timestamp: Date.now()
+                                }));
+                            } catch(e) {}
+                        }
+                        return results;
+                    };
+                    if (typeof addDebugLog === 'function') {
+                        addDebugLog('✅ [CORS] 搜索结果缓存已启用', 'success');
+                    }
+                }
+            }, 100);
+        }
+        
+        function initCORSPatch() {
+            patchWebSearchEngine();
+            patchDDGSearch();
+            addSearchCache();
+            
+            window.testCORS = async function(url = 'https://api.duckduckgo.com/?q=test&format=json') {
+                if (typeof addDebugLog === 'function') {
+                    addDebugLog('🧪 测试 CORS 连接...', 'info');
+                }
+                try {
+                    const ws = new WebSearchEngine();
+                    const result = await ws.robustFetch(url);
+                    if (result && result.ok) {
+                        if (typeof addDebugLog === 'function') {
+                            addDebugLog('✅ CORS 测试成功！', 'success');
+                        }
+                        return true;
+                    }
+                } catch (e) {
+                    if (typeof addDebugLog === 'function') {
+                        addDebugLog(`❌ CORS 测试失败: ${e.message}`, 'error');
+                    }
+                }
+                return false;
+            };
+            
+            window.showCORSStatus = function() {
+                const status = [];
+                for (const proxy of CORS_PROXIES) {
+                    const failCount = proxyFailCount.get(proxy.name) || 0;
+                    status.push(`${proxy.name}: ${failCount > 3 ? '❌ 禁用' : (failCount > 0 ? `⚠️ ${failCount}次失败` : '✅ 可用')}`);
+                }
+                console.log('CORS 代理状态:', status);
+                if (typeof addDebugLog === 'function') {
+                    addDebugLog(`[CORS] 代理状态: ${status.join(', ')}`, 'info');
+                }
+            };
+            
+            if (typeof addDebugLog === 'function') {
+                addDebugLog('🚀 [CORS] 补丁已加载 | 输入 testCORS() 测试 | showCORSStatus() 查看状态', 'success');
+            }
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initCORSPatch);
+        } else {
+            setTimeout(initCORSPatch, 2000);
+        }
+        
+        window.__corsProxyList = CORS_PROXIES;
+        window.__getBestProxy = getBestProxy;
+        
+        console.log('🔧 CORS 修复补丁 v2.0 已加载');
+    })();
+    </script>
+<!-- ==================== 增强版网络搜索 v3.0 - 获取完整网页内容 ==================== -->
+<script>
+(function() {
+    'use strict';
+    
+    if (window.__enhancedSearchLoaded) return;
+    window.__enhancedSearchLoaded = true;
+    
+    // ========== 1. 网页内容提取器 - 获取完整页面文本 ==========
+    class PageContentExtractor {
+        constructor() {
+            this.maxContentLength = 5000;  // 最大提取字符数
+            this.minContentLength = 100;    // 最小有效内容
+        }
+        
+        // 从 HTML 中提取主要文本内容
+        extractMainContent(html, url, title) {
+            try {
+                // 创建 DOM 解析器
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // 移除无关元素
+                const removeSelectors = [
+                    'script', 'style', 'noscript', 'iframe', 'object', 'embed',
+                    'nav', 'footer', 'header', 'aside', '.sidebar', '.comments',
+                    '.advertisement', '.ads', '.social-share', '.related-posts',
+                    'nav', '.menu', '.navigation', '.breadcrumb', '.cookie-notice'
+                ];
+                removeSelectors.forEach(sel => {
+                    doc.querySelectorAll(sel).forEach(el => el.remove());
+                });
+                
+                // 尝试找到主要内容区域
+                let content = '';
+                const contentSelectors = [
+                    'article', 'main', '.content', '.post-content', '.article-content',
+                    '.entry-content', '.post-body', '.main-content', '#content',
+                    '.page-content', '.blog-post', '.news-article'
+                ];
+                
+                for (const sel of contentSelectors) {
+                    const element = doc.querySelector(sel);
+                    if (element) {
+                        content = element.textContent || '';
+                        if (content.length > this.minContentLength) break;
+                    }
+                }
+                
+                // 如果没找到特定区域，使用 body
+                if (content.length < this.minContentLength && doc.body) {
+                    content = doc.body.textContent || '';
+                }
+                
+                // 清理文本
+                content = this.cleanText(content);
+                
+                // 提取元数据
+                const metadata = this.extractMetadata(doc);
+                
+                return {
+                    content: content.substring(0, this.maxContentLength),
+                    fullLength: content.length,
+                    metadata: metadata,
+                    title: metadata.title || title || ''
+                };
+                
+            } catch (e) {
+                console.warn('内容提取失败:', e);
+                return null;
+            }
+        }
+        
+        cleanText(text) {
+            if (!text) return '';
+            return text
+                .replace(/\s+/g, ' ')           // 合并空白
+                .replace(/\n\s*\n/g, '\n\n')     // 保留段落分隔
+                .replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s\n.,!?;:()<>"'\-+=*&%$#@/\\|~`]/g, '') // 移除特殊字符
+                .trim();
+        }
+        
+        extractMetadata(doc) {
+            const metadata = {};
+            
+            // 获取描述
+            const desc = doc.querySelector('meta[name="description"]');
+            if (desc) metadata.description = desc.getAttribute('content');
+            
+            // 获取关键词
+            const keywords = doc.querySelector('meta[name="keywords"]');
+            if (keywords) metadata.keywords = keywords.getAttribute('content');
+            
+            // 获取作者
+            const author = doc.querySelector('meta[name="author"]');
+            if (author) metadata.author = author.getAttribute('content');
+            
+            // 获取发布时间
+            const timeSelectors = ['time', '[datetime]', '.publish-date', '.post-date'];
+            for (const sel of timeSelectors) {
+                const el = doc.querySelector(sel);
+                if (el) {
+                    metadata.publishDate = el.getAttribute('datetime') || el.textContent;
+                    break;
+                }
+            }
+            
+            return metadata;
+        }
+        
+        // 生成内容摘要
+        generateSummary(text, maxLength = 500) {
+            if (!text) return '';
+            if (text.length <= maxLength) return text;
+            
+            // 按句子分割
+            const sentences = text.split(/[。！？!?]+/);
+            let summary = '';
+            for (const sentence of sentences) {
+                if (summary.length + sentence.length + 1 <= maxLength) {
+                    summary += sentence + '。';
+                } else break;
+            }
+            return summary || text.substring(0, maxLength);
+        }
+        
+        // 提取关键信息点
+        extractKeyPoints(text, maxPoints = 5) {
+            const points = [];
+            
+            // 查找列表项
+            const listItems = text.match(/[•·\-*]\s*[^。！？]+[。！？]?/g) || [];
+            for (const item of listItems.slice(0, maxPoints)) {
+                points.push(item.replace(/^[•·\-*]\s*/, '').trim());
+            }
+            
+            // 查找数字开头的条目
+            if (points.length < maxPoints) {
+                const numbered = text.match(/\d+\.\s*[^。！？]+[。！？]?/g) || [];
+                for (const item of numbered.slice(0, maxPoints - points.length)) {
+                    points.push(item.replace(/^\d+\.\s*/, '').trim());
+                }
+            }
+            
+            // 查找重要句子
+            if (points.length < maxPoints) {
+                const sentences = text.split(/[。！？!?]+/);
+                const importantKeywords = ['重要', '关键', '核心', '总结', '结论', '建议', '推荐', '最佳'];
+                for (const sentence of sentences) {
+                    for (const kw of importantKeywords) {
+                        if (sentence.includes(kw) && sentence.length > 20 && sentence.length < 200) {
+                            points.push(sentence.trim());
+                            break;
+                        }
+                    }
+                    if (points.length >= maxPoints) break;
+                }
+            }
+            
+            return points.slice(0, maxPoints);
+        }
+    }
+    
+    // ========== 2. 多源搜索增强 ==========
+    class EnhancedSearchEngine {
+        constructor() {
+            this.extractor = new PageContentExtractor();
+            this.searchCache = new Map();
+            this.pageCache = new Map();
+            this.maxCacheAge = 30 * 60 * 1000; // 30分钟缓存
+        }
+        
+        // 执行搜索并获取完整内容
+        async searchWithContent(query) {
+            const startTime = performance.now();
+            
+            // 1. 获取搜索结果列表
+            const searchResults = await this.getSearchResults(query);
+            if (!searchResults || searchResults.length === 0) {
+                return [];
+            }
+            
+            // 2. 为每个结果获取完整页面内容（并发获取，限制数量）
+            const enrichedResults = [];
+            const maxPages = Math.min(5, searchResults.length);
+            
+            // 并行获取页面内容
+            const fetchPromises = searchResults.slice(0, maxPages).map(async (result, idx) => {
+                try {
+                    const pageContent = await this.getPageContent(result.url);
+                    if (pageContent) {
+                        return {
+                            ...result,
+                            fullContent: pageContent.content,
+                            summary: this.extractor.generateSummary(pageContent.content, 800),
+                            keyPoints: this.extractor.extractKeyPoints(pageContent.content, 5),
+                            metadata: pageContent.metadata,
+                            contentLength: pageContent.fullLength
+                        };
+                    }
+                } catch (e) {
+                    console.warn(`获取页面内容失败 ${result.url}:`, e);
+                }
+                return result;
+            });
+            
+            const fetchedResults = await Promise.all(fetchPromises);
+            
+            // 3. 合并结果
+            for (const result of fetchedResults) {
+                if (result) enrichedResults.push(result);
+            }
+            
+            const elapsed = performance.now() - startTime;
+            if (typeof addDebugLog === 'function') {
+                addDebugLog(`🌐 增强搜索完成: ${enrichedResults.length} 条结果, 耗时 ${elapsed.toFixed(0)}ms`, 'success');
+            }
+            
+            return enrichedResults;
+        }
+        
+        // 获取搜索结果列表
+        async getSearchResults(query) {
+            // 检查缓存
+            const cacheKey = `search_${query.toLowerCase()}`;
+            const cached = this.searchCache.get(cacheKey);
+            if (cached && Date.now() - cached.timestamp < this.maxCacheAge) {
+                return cached.results;
+            }
+            
+            const results = [];
+            
+            // 方案1: DuckDuckGo API
+            try {
+                const ddgResults = await this.searchDuckDuckGo(query);
+                results.push(...ddgResults);
+            } catch (e) {}
+            
+            // 方案2: Wikipedia
+            try {
+                const wikiResults = await this.searchWikipedia(query);
+                results.push(...wikiResults);
+            } catch (e) {}
+            
+            // 方案3: Brave Search (备用)
+            if (results.length < 3) {
+                try {
+                    const braveResults = await this.searchBrave(query);
+                    results.push(...braveResults);
+                } catch (e) {}
+            }
+            
+            // 去重
+            const uniqueResults = [];
+            const seenUrls = new Set();
+            for (const result of results) {
+                const urlKey = result.url?.replace(/\/$/, '').toLowerCase();
+                if (urlKey && !seenUrls.has(urlKey)) {
+                    seenUrls.add(urlKey);
+                    uniqueResults.push(result);
+                }
+            }
+            
+            // 缓存结果
+            this.searchCache.set(cacheKey, {
+                results: uniqueResults.slice(0, 8),
+                timestamp: Date.now()
+            });
+            
+            return uniqueResults.slice(0, 8);
+        }
+        
+        // DuckDuckGo 搜索
+        async searchDuckDuckGo(query) {
+            const results = [];
+            const urls = [
+                `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`,
+                `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`
+            ];
+            
+            for (const url of urls) {
+                try {
+                    const response = await this.fetchWithTimeout(url, 5000);
+                    if (!response.ok) continue;
+                    
+                    const data = await response.json();
+                    
+                    // 主要摘要
+                    if (data.Abstract && data.Abstract.length > 50) {
+                        results.push({
+                            title: data.Heading || query,
+                            snippet: data.Abstract.substring(0, 400),
+                            url: data.AbstractURL || `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
+                            source: data.AbstractSource || 'DuckDuckGo',
+                            relevance: 0.9
+                        });
+                    }
+                    
+                    // 相关主题
+                    if (data.RelatedTopics) {
+                        for (const topic of data.RelatedTopics) {
+                            if (topic.Text && topic.FirstURL && results.length < 10) {
+                                results.push({
+                                    title: topic.Text.substring(0, 100),
+                                    snippet: topic.Text.substring(0, 300),
+                                    url: topic.FirstURL,
+                                    source: 'DuckDuckGo',
+                                    relevance: 0.7
+                                });
+                            }
+                        }
+                    }
+                    
+                    // 搜索结果
+                    if (data.Results) {
+                        for (const result of data.Results) {
+                            if (result.Text && result.FirstURL && results.length < 10) {
+                                results.push({
+                                    title: result.Text.substring(0, 100),
+                                    snippet: result.Text.substring(0, 300),
+                                    url: result.FirstURL,
+                                    source: 'DuckDuckGo',
+                                    relevance: 0.6
+                                });
+                            }
+                        }
+                    }
+                    
+                    if (results.length >= 5) break;
+                    
+                } catch (e) {}
+            }
+            
+            return results;
+        }
+        
+        // Wikipedia 搜索
+        async searchWikipedia(query) {
+            const results = [];
+            const languages = ['zh', 'en'];
+            
+            for (const lang of languages) {
+                try {
+                    const searchUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=5&format=json&origin=*`;
+                    const response = await this.fetchWithTimeout(searchUrl, 5000);
+                    if (!response.ok) continue;
+                    
+                    const data = await response.json();
+                    const searchResults = data.query?.search || [];
+                    
+                    for (const item of searchResults) {
+                        // 获取页面摘要
+                        const summaryUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&explaintext&titles=${encodeURIComponent(item.title)}&format=json&origin=*`;
+                        const summaryResponse = await this.fetchWithTimeout(summaryUrl, 5000);
+                        
+                        let summary = item.snippet?.replace(/<[^>]+>/g, '') || '';
+                        
+                        if (summaryResponse && summaryResponse.ok) {
+                            const summaryData = await summaryResponse.json();
+                            const pages = summaryData.query?.pages || {};
+                            for (const pageId in pages) {
+                                if (pages[pageId].extract) {
+                                    summary = pages[pageId].extract.substring(0, 500);
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        results.push({
+                            title: item.title,
+                            snippet: summary.substring(0, 400),
+                            url: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(item.title)}`,
+                            source: `Wikipedia (${lang.toUpperCase()})`,
+                            relevance: 0.85
+                        });
+                    }
+                    
+                } catch (e) {}
+            }
+            
+            return results;
+        }
+        
+        // Brave Search
+        async searchBrave(query) {
+            const results = [];
+            try {
+                // 使用 Brave 的公开搜索建议 API
+                const suggestUrl = `https://search.brave.com/api/suggest?q=${encodeURIComponent(query)}`;
+                const response = await this.fetchWithTimeout(suggestUrl, 3000);
+                if (!response.ok) return results;
+                
+                const data = await response.json();
+                const suggestions = data[1] || [];
+                
+                for (const sug of suggestions.slice(0, 5)) {
+                    results.push({
+                        title: sug,
+                        snippet: `搜索建议: ${sug}`,
+                        url: `https://search.brave.com/search?q=${encodeURIComponent(sug)}`,
+                        source: 'Brave Search',
+                        relevance: 0.5
+                    });
+                }
+                
+            } catch (e) {}
+            
+            return results;
+        }
+        
+        // 获取页面完整内容
+        async getPageContent(url) {
+            // 检查缓存
+            const cacheKey = `page_${url}`;
+            const cached = this.pageCache.get(cacheKey);
+            if (cached && Date.now() - cached.timestamp < this.maxCacheAge) {
+                return cached.content;
+            }
+            
+            // 尝试多种方式获取页面内容
+            let html = null;
+            
+            // 方式1: 直接请求
+            try {
+                const response = await this.fetchWithTimeout(url, 8000);
+                if (response.ok) {
+                    html = await response.text();
+                }
+            } catch (e) {}
+            
+            // 方式2: 通过 CORS 代理
+            if (!html) {
+                const proxies = [
+                    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                    `https://cors-anywhere.herokuapp.com/${url}`,
+                    `https://proxy.cors.sh/${url}`
+                ];
+                
+                for (const proxyUrl of proxies) {
+                    try {
+                        const response = await this.fetchWithTimeout(proxyUrl, 10000);
+                        if (response.ok) {
+                            html = await response.text();
+                            break;
+                        }
+                    } catch (e) {}
+                }
+            }
+            
+            if (!html) return null;
+            
+            // 提取内容
+            const content = this.extractor.extractMainContent(html, url, '');
+            if (content && content.content.length > 100) {
+                // 缓存结果
+                this.pageCache.set(cacheKey, {
+                    content: content,
+                    timestamp: Date.now()
+                });
+                return content;
+            }
+            
+            return null;
+        }
+        
+        // 带超时的 fetch
+        async fetchWithTimeout(url, timeoutMs) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+            
+            try {
+                const response = await fetch(url, {
+                    signal: controller.signal,
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+                clearTimeout(timeoutId);
+                return response;
+            } catch (e) {
+                clearTimeout(timeoutId);
+                throw e;
+            }
+        }
+    }
+    
+    // ========== 3. 替换原有 WebSearchEngine ==========
+    let enhancedEngine = null;
+    
+    function enhanceWebSearch() {
+        const checkInterval = setInterval(() => {
+            if (typeof WebSearchEngine !== 'undefined') {
+                clearInterval(checkInterval);
+                
+                // 保存原始方法
+                const originalSearch = WebSearchEngine.prototype.search;
+                
+                // 替换为增强版
+                WebSearchEngine.prototype.search = async function(query) {
+                    if (!enhancedEngine) {
+                        enhancedEngine = new EnhancedSearchEngine();
+                    }
+                    
+                    try {
+                        const enhancedResults = await enhancedEngine.searchWithContent(query);
+                        if (enhancedResults && enhancedResults.length > 0) {
+                            return enhancedResults;
+                        }
+                    } catch (e) {
+                        if (typeof addDebugLog === 'function') {
+                            addDebugLog(`增强搜索失败，回退到原始搜索: ${e.message}`, 'warning');
+                        }
+                    }
+                    
+                    // 回退到原始搜索
+                    return originalSearch.call(this, query);
+                };
+                
+                // 添加格式化方法
+                WebSearchEngine.prototype.formatResultsForPrompt = function(results) {
+                    if (!results || results.length === 0) return '';
+                    
+                    let context = '🌐 **网络搜索结果** (以下信息来自互联网，请注意核实准确性):\n\n';
+                    
+                    results.forEach((r, i) => {
+                        context += `[${i + 1}] **${r.title}**\n`;
+                        context += `来源: ${r.source}\n`;
+                        context += `链接: ${r.url}\n\n`;
+                        
+                        // 摘要
+                        if (r.summary || r.snippet) {
+                            context += `📝 摘要: ${(r.summary || r.snippet).substring(0, 800)}\n\n`;
+                        }
+                        
+                        // 关键点
+                        if (r.keyPoints && r.keyPoints.length > 0) {
+                            context += `🔑 关键信息:\n`;
+                            r.keyPoints.forEach(point => {
+                                context += `  • ${point.substring(0, 200)}\n`;
+                            });
+                            context += `\n`;
+                        }
+                        
+                        // 完整内容（如果有）
+                        if (r.fullContent && r.fullContent.length > 0) {
+                            context += `📄 详细内容:\n${r.fullContent.substring(0, 1000)}\n\n`;
+                        }
+                        
+                        context += `---\n\n`;
+                    });
+                    
+                    context += '请基于以上网络搜索结果回答用户问题。优先使用摘要和关键信息，详细内容供参考。引用信息时请注明来源编号[1][2]。';
+                    
+                    return context;
+                };
+                
+                WebSearchEngine.prototype.formatResultsForDisplay = function(results) {
+                    if (!results || results.length === 0) return '🔍 未找到相关搜索结果';
+                    
+                    let html = `<div class="web-search-indicator">🌐 搜索到 ${results.length} 条网络结果 (含完整内容)</div>`;
+                    
+                    results.forEach(r => {
+                        html += `<div class="web-search-result-card" style="margin: 12px 0; padding: 16px; background: var(--ai-msg-bg); border-radius: 16px; border: 1px solid var(--border-color);">
+                            <div class="result-title" style="font-weight: 600; margin-bottom: 8px;">
+                                🔗 <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a>
+                                <span style="font-size: 11px; color: var(--text-secondary); margin-left: 8px;">📡 ${escapeHtml(r.source)}</span>
+                            </div>`;
+                        
+                        if (r.summary || r.snippet) {
+                            html += `<div class="result-snippet" style="font-size: 13px; color: var(--text-primary); margin: 8px 0; line-height: 1.5;">
+                                📝 ${escapeHtml((r.summary || r.snippet).substring(0, 500))}
+                            </div>`;
+                        }
+                        
+                        if (r.keyPoints && r.keyPoints.length > 0) {
+                            html += `<div class="result-keypoints" style="margin: 8px 0; padding: 8px 12px; background: var(--knowledge-bg); border-radius: 12px;">
+                                <div style="font-weight: 500; margin-bottom: 4px;">🔑 关键信息</div>
+                                <ul style="margin: 0; padding-left: 20px;">`;
+                            r.keyPoints.forEach(point => {
+                                html += `<li style="font-size: 12px; margin: 4px 0;">${escapeHtml(point.substring(0, 150))}</li>`;
+                            });
+                            html += `</ul></div>`;
+                        }
+                        
+                        if (r.fullContent && r.fullContent.length > 200) {
+                            html += `<details style="margin: 8px 0;">
+                                <summary style="cursor: pointer; color: var(--primary-color); font-size: 12px;">📖 查看详细内容 (${Math.round(r.fullContent.length / 100) / 10}K字)</summary>
+                                <div style="margin-top: 8px; padding: 12px; background: var(--chat-bg); border-radius: 12px; font-size: 12px; line-height: 1.6; max-height: 300px; overflow-y: auto;">
+                                    ${escapeHtml(r.fullContent)}
+                                </div>
+                            </details>`;
+                        }
+                        
+                        html += `<div class="result-source" style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                            📊 内容长度: ${r.contentLength ? Math.round(r.contentLength / 100) / 10 + 'K' : '未知'} 字符
+                        </div>`;
+                        
+                        html += `</div>`;
+                    });
+                    
+                    return html;
+                };
+                
+                if (typeof addDebugLog === 'function') {
+                    addDebugLog('✅ 增强版网络搜索 v3.0 已加载 (支持完整页面内容提取)', 'success');
+                }
+                
+                console.log('🚀 增强版网络搜索已启用 - 搜索结果将包含完整网页内容');
+            }
+        }, 100);
+    }
+    
+    // 启动增强
+    enhanceWebSearch();
+    
+    // 添加控制台命令
+    window.clearSearchCache = function() {
+        if (enhancedEngine) {
+            enhancedEngine.searchCache.clear();
+            enhancedEngine.pageCache.clear();
+            if (typeof addDebugLog === 'function') {
+                addDebugLog('🗑️ 搜索缓存已清空', 'success');
+            }
+        }
+    };
+    
+    window.getSearchStats = function() {
+        if (enhancedEngine) {
+            console.log('搜索缓存大小:', enhancedEngine.searchCache.size);
+            console.log('页面缓存大小:', enhancedEngine.pageCache.size);
+        }
+    };
+    
+})();
+</script>
+<!-- ==================== AI 精准回答完整补丁包 ==================== -->
+<script>
+(function() {
+    'use strict';
+    
+    if (window.__fullPrecisePatch) return;
+    window.__fullPrecisePatch = true;
+    
+    // ========== 1. 检测查询类型 ==========
+    function isFactualQuery(query) {
+        if (!query) return false;
+        
+        // 公司/企业查询
+        if (/有限公司|股份有限公司|有限责任公司|集团|公司|企业|餐饮|科技/.test(query)) return true;
+        // 人物查询
+        if (/是谁|什么人|人物|明星|演员|歌手|作家/.test(query)) return true;
+        // 事件查询
+        if (/发生了|事件|新闻|报道|事故/.test(query)) return true;
+        // 数据查询
+        if (/多少钱|价格|多少元|费用|成本/.test(query)) return true;
+        
+        return false;
+    }
+    
+    function isCompanyQuery(query) {
+        return /有限公司|股份有限公司|有限责任公司|集团|公司|企业/.test(query);
+    }
+    
+    function extractCompanyName(query) {
+        const match = query.match(/([\u4e00-\u9fa5]{2,}(?:有限|股份|集团|公司|餐饮|科技|网络|信息|文化|教育|医疗|食品|贸易|实业))/);
+        return match ? match[1] : query;
+    }
+    
+    // ========== 2. 强制精准回答的系统提示 ==========
+    const PRECISE_SYSTEM_PROMPT = `【强制规则 - 必须严格遵守】
 
+当用户询问具体信息时，你必须：
+
+✅ 直接提供搜索到的具体信息（用表格或列表）
+✅ 如果搜索不到，明确说"未找到相关信息"
+✅ 可以附上信息来源
+
+❌ 绝对禁止：
+- "你可以去某某网站查询"
+- "建议您登录某某系统"
+- "请搜索关键词"
+- 任何教用户"怎么查"的内容
+
+记住：用户要的是答案，不是方法！`;
+
+    // ========== 3. 替换系统提示 ==========
+    const originalGetSystemPrompt = window.getSystemPrompt;
+    
+    window.getSystemPrompt = function() {
+        const lastUserMsg = getLastUserMessage();
+        if (isFactualQuery(lastUserMsg)) {
+            return PRECISE_SYSTEM_PROMPT;
+        }
+        return originalGetSystemPrompt ? originalGetSystemPrompt() : "你是专业AI助手，用简体中文回答。";
+    };
+    
+    function getLastUserMessage() {
+        const chats = window.chats || [];
+        const currentChat = chats.find(c => c.id === window.currentChatId);
+        if (!currentChat?.messages) return '';
+        for (let i = currentChat.messages.length - 1; i >= 0; i--) {
+            if (currentChat.messages[i].role === 'user') {
+                return currentChat.messages[i].content || '';
+            }
+        }
+        return '';
+    }
+    
+    // ========== 4. 增强公司搜索 ==========
+    const originalSearch = window.performWebSearch;
+    if (originalSearch) {
+        window.performWebSearch = async function(query) {
+            let searchQuery = query;
+            if (isCompanyQuery(query)) {
+                const companyName = extractCompanyName(query);
+                searchQuery = `${companyName} 工商信息 法定代表人 注册资本 成立日期 经营范围`;
+                if (typeof addDebugLog === 'function') {
+                    addDebugLog(`🏢 公司查询增强: "${query}" → "${searchQuery}"`, 'info');
+                }
+            }
+            return originalSearch(searchQuery);
+        };
+    }
+    
+    // ========== 5. 后处理：清理方法论回答 ==========
+    function cleanMethodologyResponse(response, query) {
+        if (!response || !isFactualQuery(query)) return response;
+        
+        // 检查是否包含具体数据
+        const hasSpecificData = /(\d{4}[-年]|\d+万|\d+元|法定代表人|注册资本|成立日期|注册地址)/.test(response);
+        const isMethodology = /(你可以|建议您|请登录|请访问|通过.*查询|输入.*查询)/.test(response);
+        
+        if (isMethodology && !hasSpecificData && response.length > 150) {
+            const companyName = extractCompanyName(query);
+            return `❌ 未能在公开信息中找到 **${companyName}** 的具体数据。
+
+**建议直接访问官方渠道：**
+• 国家企业信用信息公示系统：https://www.gsxt.gov.cn
+• 输入公司全称即可查询
+
+如果您能提供更多信息（如注册地、法人姓名），我可以帮您进一步查找。`;
+        }
+        
+        return response;
+    }
+    
+    // 拦截 AI 响应
+    const originalAppendMessage = window.appendMessageDOM;
+    if (originalAppendMessage) {
+        window.appendMessageDOM = async function(role, content) {
+            if (role === 'ai') {
+                const query = getLastUserMessage();
+                content = cleanMethodologyResponse(content, query);
+            }
+            return originalAppendMessage.call(this, role, content);
+        };
+    }
+    
+    // ========== 6. 添加设置选项 ==========
+    function addSetting() {
+        const checkInterval = setInterval(() => {
+            const modal = document.getElementById('settingsModal');
+            if (!modal) return;
+            if (document.getElementById('preciseModeSetting')) {
+                clearInterval(checkInterval);
+                return;
+            }
+            
+            const section = document.createElement('div');
+            section.id = 'preciseModeSetting';
+            section.className = 'voice-settings-panel';
+            section.style.marginTop = '16px';
+            section.style.padding = '16px';
+            section.innerHTML = `
+                <h4>🎯 精准回答模式</h4>
+                <label style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>强制 AI 直接提供具体信息</span>
+                    <label class="switch">
+                        <input type="checkbox" id="preciseModeToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </label>
+                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
+                    💡 开启后，询问公司信息、新闻事件等会直接给答案，不说"你可以去查"
+                </div>
+            `;
+            
+            const modalBody = modal.querySelector('.modal-body');
+            if (modalBody) modalBody.appendChild(section);
+            
+            const toggle = document.getElementById('preciseModeToggle');
+            if (toggle) {
+                toggle.addEventListener('change', (e) => {
+                    localStorage.setItem('precise_answer_mode', e.target.checked);
+                });
+            }
+            
+            clearInterval(checkInterval);
+        }, 1000);
+    }
+    
+    setTimeout(addSetting, 3000);
+    
+    // 控制台命令
+    window.testPreciseMode = function() {
+        const query = getLastUserMessage();
+        console.log('=== 精准模式状态 ===');
+        console.log('最后消息:', query);
+        console.log('事实查询:', isFactualQuery(query));
+        console.log('公司查询:', isCompanyQuery(query));
+    };
+    
+    if (typeof addDebugLog === 'function') {
+        addDebugLog('✅ AI 精准回答完整补丁包已加载', 'success');
+    }
+    
+    console.log('🎯 AI 精准回答补丁已加载 - 公司查询将直接给出具体信息');
+})();
+</script>
+</body>
+</html>
 </body>
 </html>
