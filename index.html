@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -413,6 +413,30 @@
         .kb-btn.primary { background: var(--primary-color); color: white; border: none; }
         .batch-progress { position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.9); color: white; padding: 12px 20px; border-radius: 40px; display: none; z-index: 2000; font-size: 12px; }
 
+/* ========== AI 网络搜索样式 ========== */
+.web-search-toggle { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border-color); background: var(--ai-msg-bg); cursor: pointer; font-size: 12px; transition: all 0.2s ease; user-select: none; }
+.web-search-toggle:hover { border-color: var(--primary-color); }
+.web-search-toggle.active { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border-color: transparent; box-shadow: 0 2px 8px rgba(79,172,254,0.3); }
+.web-search-toggle .search-icon { font-size: 14px; }
+.web-search-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 12px; background: linear-gradient(135deg, rgba(79,172,254,0.12), rgba(0,242,254,0.08)); border: 1px solid rgba(79,172,254,0.25); font-size: 12px; color: #4facfe; margin: 4px 0; }
+.web-search-result-card { background: var(--ai-msg-bg); border-radius: 14px; padding: 14px 16px; margin: 8px 0; border: 1px solid var(--border-color); transition: all 0.2s ease; }
+.web-search-result-card:hover { border-color: #4facfe; box-shadow: 0 2px 12px rgba(79,172,254,0.12); }
+.web-search-result-card .result-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.web-search-result-card .result-title a { color: #4facfe; text-decoration: none; }
+.web-search-result-card .result-title a:hover { text-decoration: underline; }
+.web-search-result-card .result-snippet { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.web-search-result-card .result-source { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+.web-search-loading { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 12px; background: linear-gradient(135deg, rgba(79,172,254,0.08), rgba(0,242,254,0.05)); font-size: 12px; color: #4facfe; }
+.web-search-loading .dot-pulse { display: inline-flex; gap: 3px; }
+.web-search-loading .dot-pulse span { width: 5px; height: 5px; border-radius: 50%; background: #4facfe; animation: dotPulse 1.2s infinite; }
+.web-search-loading .dot-pulse span:nth-child(2) { animation-delay: 0.2s; }
+.web-search-loading .dot-pulse span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotPulse { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1.2); } }
+.search-settings-section { margin-top: 16px; padding: 16px; background: var(--ai-msg-bg); border-radius: 16px; }
+.search-engine-option { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: all 0.15s; margin-bottom: 4px; }
+.search-engine-option:hover { background: var(--knowledge-bg); }
+.search-engine-option.selected { background: rgba(79,172,254,0.1); border: 1px solid rgba(79,172,254,0.3); }
+
         .voice-settings-panel { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); }
         .voice-test-btn { padding: 8px 16px; border-radius: 24px; background: var(--primary-color); color: white; border: none; cursor: pointer; margin-right: 8px; min-height: 40px; }
         .dialog-buttons { display: flex; gap: 12px; margin-top: 16px; }
@@ -781,6 +805,10 @@
                     <span class="mode-desc">优先知识库,不足时模型补充</span>
                 </div>
                 <div id="cognitiveIndicator" class="rag-mode-indicator" style="cursor:pointer; background:#52c41a; color:white;" onclick="window.showEvolutionStatus?.()">🧠 认知 0%</div>
+                <div class="web-search-toggle" id="webSearchToggle" onclick="toggleWebSearch()" title="AI 网络搜索">
+                    <span class="search-icon">🌐</span>
+                    <span id="webSearchLabel">搜索</span>
+                </div>
             </div>
 
             <div class="chat-actions">
@@ -796,8 +824,8 @@
 
         <div class="chat-container" id="chatContainer">
             <div id="welcomeMsg">
-                <h2>✨ 本地模型 · AI记忆系统增强版 | 智能标签 | 对话分支 | 记忆分层 | 关联学习 | 记忆导入导出 | 混合文件系统 | DeepSeek API | 智谱API | LM Studio | 🧠 顶级自动记忆系统 | 🧬 自主进化认知</h2>
-                <p>🔍 增强分词(BM25) | 📄 语义分块 | 🎯 知识库开关 | 📎 附件上传 | 🎤 语音播报 | 📋 模板库 | ➕ 继续生成 | 💾 按需加载 | 💽 全局备份恢复 | 🗜️ 对话摘要压缩 (API优先 → bge-small-zh-v1.5 + TextRank) | 🎨 代码高亮 | ⏸️ 暂停/继续生成 | 🚀 增量索引 | 🏷️ 智能标签 | 🛡️ 幻觉检测 | 🔧 编程模式 | 🌿 对话分支 | 🧠 AI记忆系统 | 🔗 关联学习 | 📤 记忆导入导出 | 💪 优化版 | 📁 混合文件系统 | 🔑 DeepSeek API | 🚀 智谱API | 🎯 LM Studio | 🧬 自主进化认知</p>
+                <h2>✨ 本地模型 · AI记忆系统增强版 | 智能标签 | 对话分支 | 记忆分层 | 关联学习 | 记忆导入导出 | 混合文件系统 | DeepSeek API | 智谱API | LM Studio | 🧠 顶级自动记忆系统 | 🧬 自主进化认知 | 🌐 AI 网络搜索</h2>
+                <p>🔍 增强分词(BM25) | 📄 语义分块 | 🎯 知识库开关 | 📎 附件上传 | 🎤 语音播报 | 📋 模板库 | ➕ 继续生成 | 💾 按需加载 | 💽 全局备份恢复 | 🗜️ 对话摘要压缩 (API优先 → bge-small-zh-v1.5 + TextRank) | 🎨 代码高亮 | ⏸️ 暂停/继续生成 | 🚀 增量索引 | 🏷️ 智能标签 | 🛡️ 幻觉检测 | 🔧 编程模式 | 🌿 对话分支 | 🧠 AI记忆系统 | 🔗 关联学习 | 📤 记忆导入导出 | 💪 优化版 | 📁 混合文件系统 | 🔑 DeepSeek API | 🚀 智谱API | 🎯 LM Studio | 🧬 自主进化认知 | 🌐 AI 网络搜索</p>
                 <p style="font-size:13px; margin-top:8px; background: var(--knowledge-bg); padding: 8px; border-radius: 12px;">💡 <strong>🧠 顶级自动记忆系统</strong>:🔥 完全自动学习 | 🔍 语义+关键词联想搜索 | ⚡ 毫秒级响应 | 📊 三层记忆架构 | 🎯 智能重要性评估 | 💡 无需任何操作,正常对话即可</p>
                 <p style="font-size:13px; margin-top:8px; background: var(--primary-color); padding: 8px; border-radius: 12px; color:white;">🧬 <strong>自主进化认知系统</strong>(新增!)<br>
                 • <strong>元认知监控</strong>:实时评估知识质量和系统状态<br>
@@ -817,6 +845,12 @@
                 🚀 <strong>智谱 API</strong>:支持智谱 GLM 系列模型,设置中选择 OpenAI 模式并填写 API Key!<br>
                 🎯 <strong>LM Studio</strong>:支持本地 LM Studio 服务,无需 API Key,完全免费!<br>
                 🧬 <strong>自主进化</strong>:系统后台自主评估知识质量,持续优化学习!</p>
+                <p style="font-size:13px; margin-top:8px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 8px; border-radius: 12px; color:white;">🌐 <strong>AI 网络搜索</strong>(新功能!):回答前自动搜索互联网获取实时信息<br>
+                • <strong>一键开关</strong>:点击聊天顶部🌐按钮快速开启/关闭<br>
+                • <strong>多引擎支持</strong>:DuckDuckGo(免费无需Key)/SearXNG/Google/Bing<br>
+                • <strong>手动搜索</strong>:输入 <code>/websearch 关键词</code> 或 <code>/ws 关键词</code> 直接搜索<br>
+                • <strong>智能集成</strong>:搜索结果自动注入AI上下文,回答更有依据<br>
+                • <strong>设置配置</strong>:⚙️设置 → 🌐 AI 网络搜索,选择引擎和参数</p>
                 <p style="font-size:13px; margin-top:8px; background: var(--danger-color); padding: 8px; border-radius: 12px; color:white;">🧹 <strong>内容过滤增强</strong>:自动过滤二手车、广告等不相关内容 | 支持宽松/严格/精确三种匹配模式 | 可一键清理知识库中的不相关内容<br>
                 🛡️ <strong>幻觉检测</strong>:强制引用格式 + 不确定词汇检测 + 置信度评分</p>
             </div>
@@ -1122,6 +1156,66 @@
                     <button id="exportMemoriesBtn" class="kb-btn" style="flex: 1;">💾 导出备份</button>
                 </div>
                 <div id="autoMemoryStatus" style="font-size: 11px; color: var(--text-secondary);"></div>
+            </div>
+
+            <!-- ========== 13. AI 网络搜索设置 ========== -->
+            <div class="search-settings-section" id="webSearchSettingsSection">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h4 style="margin: 0;">🌐 AI 网络搜索</h4>
+                    <label class="switch" style="width: 48px; height: 24px;">
+                        <input type="checkbox" id="webSearchEnabledToggle" onchange="updateWebSearchToggleUI()">
+                        <span class="slider" style="border-radius: 24px;"></span>
+                    </label>
+                </div>
+                <div id="webSearchConfigPanel">
+                    <div style="margin-bottom: 12px;">
+                        <label>🔍 搜索引擎</label>
+                        <select id="webSearchEngineSelect" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                            <option value="duckduckgo">🦆 DuckDuckGo (免费/无需Key)</option>
+                            <option value="searxng">🔎 SearXNG (自建/免费)</option>
+                            <option value="google">🌐 Google (需API Key)</option>
+                            <option value="bing">🔷 Bing (需API Key)</option>
+                        </select>
+                    </div>
+                    <div id="searxngUrlRow" style="margin-bottom: 12px; display: none;">
+                        <label>SearXNG 实例地址</label>
+                        <input type="text" id="searxngUrlInput" placeholder="https://searx.be" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                    </div>
+                    <div id="googleApiKeyRow" style="margin-bottom: 12px; display: none;">
+                        <label>Google API Key</label>
+                        <input type="text" id="googleSearchApiKey" placeholder="AIza..." style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                    </div>
+                    <div id="googleCxRow" style="margin-bottom: 12px; display: none;">
+                        <label>Google Custom Search CX</label>
+                        <input type="text" id="googleSearchCx" placeholder="a1b2c3..." style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                    </div>
+                    <div id="bingApiKeyRow" style="margin-bottom: 12px; display: none;">
+                        <label>Bing API Key</label>
+                        <input type="text" id="bingSearchApiKey" placeholder="your-api-key" style="width: 100%; padding: 8px; border-radius: 8px; margin-top: 4px;">
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>📊 最大搜索结果数</span>
+                            <input type="number" id="webSearchMaxResults" min="3" max="10" value="5" style="width: 60px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        </label>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>📏 摘要最大长度 (字符)</span>
+                            <input type="number" id="webSearchSnippetLength" min="100" max="500" value="200" style="width: 80px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        </label>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <label style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>⏱️ 搜索超时 (秒)</span>
+                            <input type="number" id="webSearchTimeout" min="5" max="30" value="10" style="width: 60px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        </label>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">
+                        💡 开启后,AI会在回答前自动搜索网络,获取实时信息。DuckDuckGo免费且无需Key,推荐日常使用。<br>
+                        📌 也可在聊天顶部点🌐快速开关,或输入 <code>/websearch 关键词</code> 手动搜索。
+                    </div>
+                </div>
             </div>
 
             <!-- ========== 12. 专业编程模式 ========== -->
@@ -2302,6 +2396,9 @@
             closeSettings();
             testConnection();
 
+            // Save web search settings
+            if (typeof saveWebSearchSettings === 'function') saveWebSearchSettings();
+
             showToast(`✅ 设置已保存 | 上下文: ${MAX_CONTEXT_TOKENS} | 输出限制: ${MODEL_PARAMS.max_tokens} | 模型: ${MODEL_NAME}`);
             addDebugLog(`✅ 设置已保存: maxContext=${MAX_CONTEXT_TOKENS}, maxTokens=${MODEL_PARAMS.max_tokens}, temperature=${MODEL_PARAMS.temperature}, model=${MODEL_NAME}`, 'success');
 
@@ -2461,6 +2558,9 @@
                     });
                 }
             }
+
+            // Load web search settings
+            if (typeof loadWebSearchSettings === 'function') loadWebSearchSettings();
         }
 
         // ==================== 修复后的 handleMultipleFilesUpload 函数 ====================
@@ -3077,6 +3177,460 @@ function clearAllAttachments() {
         let autoSyncer = null;
 
         let ultimateMemorySystem = null;
+
+        // ==================== AI 网络搜索系统 ====================
+        let webSearchEnabled = localStorage.getItem('webSearch_enabled') === 'true';
+        let webSearchEngine = localStorage.getItem('webSearch_engine') || 'duckduckgo';
+        let webSearchMaxResults = parseInt(localStorage.getItem('webSearch_maxResults')) || 5;
+        let webSearchSnippetLength = parseInt(localStorage.getItem('webSearch_snippetLength')) || 300;
+        let webSearchTimeout = parseInt(localStorage.getItem('webSearch_timeout')) || 15;
+
+        class WebSearchEngine {
+            constructor() {
+                this.engine = webSearchEngine;
+                this.maxResults = webSearchMaxResults;
+                this.snippetLength = webSearchSnippetLength;
+                this.timeout = webSearchTimeout * 1000;
+                this.cache = new Map();
+                this.cacheTTL = 10 * 60 * 1000;
+                // CORS proxies — rotate on failure (ordered by reliability)
+                this.corsProxies = [
+                    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                    url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+                    url => `https://corsproxy.io/?${encodeURIComponent(url)}`
+                ];
+                this.currentProxyIdx = 0;
+                this.perRequestTimeout = 8000; // 8s per individual request
+            }
+
+            updateConfig() {
+                this.engine = webSearchEngine;
+                this.maxResults = webSearchMaxResults;
+                this.snippetLength = webSearchSnippetLength;
+                this.timeout = webSearchTimeout * 1000;
+            }
+
+            // Robust fetch with CORS proxy rotation (per-request timeout)
+            async robustFetch(url, options = {}) {
+                const timeout = this.perRequestTimeout || 8000;
+                // Try direct first (short timeout)
+                try {
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), Math.min(timeout, 5000));
+                    const resp = await fetch(url, { ...options, signal: controller.signal });
+                    clearTimeout(timer);
+                    if (resp.ok) return resp;
+                } catch(e) {
+                    addDebugLog(`直接请求失败,尝试CORS代理: ${e.message}`, 'info');
+                }
+                // Try CORS proxies
+                for (let attempt = 0; attempt < this.corsProxies.length; attempt++) {
+                    const proxyFn = this.corsProxies[this.currentProxyIdx % this.corsProxies.length];
+                    this.currentProxyIdx++;
+                    try {
+                        const proxyUrl = proxyFn(url);
+                        const controller = new AbortController();
+                        const timer = setTimeout(() => controller.abort(), timeout);
+                        const resp = await fetch(proxyUrl, { ...options, signal: controller.signal });
+                        clearTimeout(timer);
+                        if (resp.ok) return resp;
+                    } catch(e) {
+                        addDebugLog(`CORS代理${attempt+1}失败: ${e.message}`, 'info');
+                    }
+                }
+                return null;
+            }
+
+            async search(query) {
+                const cacheKey = `${this.engine}:${query}`;
+                const cached = this.cache.get(cacheKey);
+                if (cached && Date.now() - cached.time < this.cacheTTL) {
+                    addDebugLog(`🌐 搜索缓存命中: ${query}`, 'info');
+                    return cached.results;
+                }
+
+                try {
+                    let results;
+                    switch (this.engine) {
+                        case 'duckduckgo': results = await this.searchDuckDuckGo(query); break;
+                        case 'searxng': results = await this.searchSearXNG(query); break;
+                        case 'google': results = await this.searchGoogle(query); break;
+                        case 'bing': results = await this.searchBing(query); break;
+                        default: results = await this.searchDuckDuckGo(query);
+                    }
+                    if (results && results.length > 0) {
+                        // Enrich top results by fetching page content
+                        results = await this.enrichResultsWithPageContent(results);
+                        this.cache.set(cacheKey, { results, time: Date.now() });
+                        if (this.cache.size > 100) {
+                            const oldest = [...this.cache.entries()].sort((a, b) => a[1].time - b[1].time);
+                            for (let i = 0; i < 20; i++) this.cache.delete(oldest[i][0]);
+                        }
+                    }
+                    return results || [];
+                } catch (e) {
+                    addDebugLog(`🌐 搜索失败 [${this.engine}]: ${e.message}`, 'error');
+                    if (this.engine !== 'duckduckgo') {
+                        addDebugLog('🌐 降级到 DuckDuckGo 重试...', 'warning');
+                        try {
+                            let fallback = await this.searchDuckDuckGo(query);
+                            if (fallback && fallback.length > 0) {
+                                fallback = await this.enrichResultsWithPageContent(fallback);
+                                return fallback;
+                            }
+                            return fallback || [];
+                        } catch (e2) {
+                            return [];
+                        }
+                    }
+                    return [];
+                }
+            }
+
+            // Fetch and extract key content from result pages to enrich snippets
+            async enrichResultsWithPageContent(results) {
+                const topN = Math.min(3, results.length); // Only enrich top 3
+                const fetchPromises = results.slice(0, topN).map(async (r, idx) => {
+                    if (!r.url || r.snippet.length >= 300) return; // Already has enough content
+                    try {
+                        const resp = await this.robustFetch(r.url);
+                        if (!resp) return;
+                        const html = await resp.text();
+                        // Extract text content from HTML
+                        const textContent = this.extractTextFromHtml(html);
+                        if (textContent && textContent.length > r.snippet.length) {
+                            // Find the most relevant portion
+                            const enriched = this.extractRelevantPortion(textContent, r.title, Math.max(this.snippetLength, 500));
+                            if (enriched && enriched.length > r.snippet.length) {
+                                r.fullContent = enriched;
+                                addDebugLog(`🌐 页面内容丰富: ${r.title.substring(0,30)} +${enriched.length}字`, 'success');
+                            }
+                        }
+                    } catch(e) {
+                        addDebugLog(`页面抓取失败 ${r.url}: ${e.message}`, 'info');
+                    }
+                });
+                await Promise.allSettled(fetchPromises);
+                return results;
+            }
+
+            // Extract readable text from HTML, stripping tags/scripts/styles
+            extractTextFromHtml(html) {
+                try {
+                    let text = html
+                        .replace(/<script[\s\S]*?<\/script>/gi, '')
+                        .replace(/<style[\s\S]*?<\/style>/gi, '')
+                        .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+                        .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+                        .replace(/<header[\s\S]*?<\/header>/gi, '')
+                        .replace(/<[^>]+>/g, ' ')
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/&amp;/g, '&')
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/&#\d+;/g, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    return text;
+                } catch(e) { return ''; }
+            }
+
+            // Find the most relevant portion of page text
+            extractRelevantPortion(text, query, maxLen) {
+                if (!text || text.length === 0) return '';
+                // Split into sentences/paragraphs
+                const sentences = text.split(/[。！？\.!\?\n]+/).filter(s => s.trim().length > 10);
+                if (sentences.length === 0) return text.substring(0, maxLen);
+                // Score sentences by keyword overlap with query
+                const queryTerms = query.toLowerCase().split(/[\s,，、]+/).filter(t => t.length > 1);
+                let bestIdx = 0, bestScore = -1;
+                for (let i = 0; i < sentences.length; i++) {
+                    const lower = sentences[i].toLowerCase();
+                    let score = 0;
+                    for (const term of queryTerms) {
+                        if (lower.includes(term)) score += term.length;
+                    }
+                    // Prefer not-first sentences (skip headers/nav text)
+                    if (i > 0 && i < sentences.length - 1) score += 0.5;
+                    if (score > bestScore) { bestScore = score; bestIdx = i; }
+                }
+                // Collect sentences around best match
+                let result = '';
+                for (let i = Math.max(0, bestIdx - 1); i <= Math.min(sentences.length - 1, bestIdx + 3); i++) {
+                    if (result.length + sentences[i].length > maxLen) break;
+                    result += sentences[i].trim() + '。';
+                }
+                return result || text.substring(0, maxLen);
+            }
+
+            async searchDuckDuckGo(query) {
+                // Parallel search across multiple free sources, then merge & deduplicate
+                addDebugLog(`🌐 DuckDuckGo 多源并行搜索: ${query}`, 'info');
+                const allResults = [];
+                const seenUrls = new Set();
+
+                const searchPromises = [
+                    this._searchDDGInstantAnswer(query),
+                    this._searchDDGLite(query),
+                    this._searchWikipedia(query),
+                    this._searchBraveSuggest(query),
+                ];
+
+                const settled = await Promise.allSettled(searchPromises);
+                for (const result of settled) {
+                    if (result.status === 'fulfilled' && result.value) {
+                        for (const r of result.value) {
+                            const urlKey = r.url?.replace(/\/$/, '').toLowerCase();
+                            if (urlKey && !seenUrls.has(urlKey)) {
+                                seenUrls.add(urlKey);
+                                allResults.push(r);
+                            }
+                        }
+                    }
+                }
+
+                addDebugLog(`🌐 合并搜索结果: ${allResults.length} 条 (去重后)`, 'success');
+                return allResults.slice(0, this.maxResults);
+            }
+
+            // DuckDuckGo Instant Answer API — returns Wikipedia abstract etc.
+            async _searchDDGInstantAnswer(query) {
+                const results = [];
+                try {
+                    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+                    const resp = await this.robustFetch(url);
+                    if (!resp) return results;
+                    const data = await resp.json();
+                    if (data.Abstract) {
+                        results.push({
+                            title: data.Heading || query,
+                            snippet: data.Abstract.substring(0, this.snippetLength),
+                            url: data.AbstractURL || '',
+                            source: data.AbstractSource || 'DuckDuckGo'
+                        });
+                    }
+                    if (data.RelatedTopics) {
+                        for (const topic of data.RelatedTopics) {
+                            if (topic.Text && topic.FirstURL) {
+                                results.push({
+                                    title: topic.Text.substring(0, 80),
+                                    snippet: topic.Text.substring(0, this.snippetLength),
+                                    url: topic.FirstURL,
+                                    source: 'DuckDuckGo'
+                                });
+                            }
+                            if (results.length >= 8) break;
+                        }
+                    }
+                    if (data.Results) {
+                        for (const r of data.Results) {
+                            results.push({
+                                title: r.Text?.substring(0, 80) || 'Result',
+                                snippet: r.Text?.substring(0, this.snippetLength) || '',
+                                url: r.FirstURL || '',
+                                source: 'DuckDuckGo'
+                            });
+                            if (results.length >= 8) break;
+                        }
+                    }
+                } catch(e) {
+                    addDebugLog(`DDG Instant Answer 失败: ${e.message}`, 'info');
+                }
+                return results;
+            }
+
+            // DuckDuckGo Lite — real search results via HTML parsing through CORS proxy
+            async _searchDDGLite(query) {
+                const results = [];
+                try {
+                    const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
+                    const resp = await this.robustFetch(url);
+                    if (!resp) return results;
+                    const html = await resp.text();
+                    // DDG Lite uses a simple table layout
+                    // Pattern: <a rel="nofollow" href="URL">Title</a> in result-link class
+                    const linkRegex = /<a[^>]+class="result-link"[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi;
+                    const snippetRegex = /<td[^>]+class="result-snippet"[^>]*>(.*?)<\/td>/gi;
+                    const titles = [], urls = [], snippets = [];
+                    let m;
+                    while ((m = linkRegex.exec(html)) !== null) {
+                        urls.push(m[1]);
+                        titles.push(m[2].replace(/<[^>]+>/g, '').trim());
+                    }
+                    while ((m = snippetRegex.exec(html)) !== null) {
+                        snippets.push(m[1].replace(/<[^>]+>/g, '').trim());
+                    }
+                    // Also try generic link pattern for DDG Lite
+                    if (urls.length === 0) {
+                        const genericLink = /<a[^>]+rel="nofollow"[^>]*href="(https?:\/\/[^"]+)"[^>]*>(.*?)<\/a>/gi;
+                        while ((m = genericLink.exec(html)) !== null) {
+                            if (!m[2].replace(/<[^>]+>/g, '').trim().match(/^(More|Cached|Proxies)$/i)) {
+                                urls.push(m[1]);
+                                titles.push(m[2].replace(/<[^>]+>/g, '').trim());
+                            }
+                        }
+                    }
+                    for (let i = 0; i < Math.min(urls.length, 8); i++) {
+                        results.push({
+                            title: titles[i] || 'Untitled',
+                            snippet: (snippets[i] || '').substring(0, this.snippetLength),
+                            url: urls[i],
+                            source: 'DuckDuckGo'
+                        });
+                    }
+                } catch(e) {
+                    addDebugLog(`DDG Lite 失败: ${e.message}`, 'info');
+                }
+                return results;
+            }
+
+            // Wikipedia full-text search — much richer than summary API
+            async _searchWikipedia(query) {
+                const results = [];
+                for (const lang of ['zh', 'en']) {
+                    try {
+                        // Full-text search API returns multiple results with snippets
+                        const searchUrl = `https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=3&format=json&origin=*&utf8=1`;
+                        const controller = new AbortController();
+                        const timer = setTimeout(() => controller.abort(), this.timeout);
+                        const resp = await fetch(searchUrl, { signal: controller.signal });
+                        clearTimeout(timer);
+                        if (!resp.ok) continue;
+                        const data = await resp.json();
+                        const searchResults = data.query?.search || [];
+                        for (const item of searchResults) {
+                            const snippet = (item.snippet || '').replace(/<[^>]+>/g, '').trim();
+                            if (snippet) {
+                                results.push({
+                                    title: item.title || 'Untitled',
+                                    snippet: snippet.substring(0, this.snippetLength),
+                                    url: `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(item.title)}`,
+                                    source: `Wikipedia (${lang.toUpperCase()})`
+                                });
+                            }
+                        }
+                    } catch(e) { /* continue */ }
+                    if (results.length >= 4) break;
+                }
+                return results;
+            }
+
+            // Brave Search Suggest API — returns real search result titles
+            async _searchBraveSuggest(query) {
+                const results = [];
+                try {
+                    // Brave's public suggest endpoint
+                    const url = `https://search.brave.com/api/suggest?q=${encodeURIComponent(query)}`;
+                    const resp = await this.robustFetch(url);
+                    if (!resp) return results;
+                    const data = await resp.json();
+                    // suggest returns [query, [suggestions]]
+                    const suggestions = data[1] || [];
+                    for (const sug of suggestions.slice(0, 5)) {
+                        results.push({
+                            title: sug,
+                            snippet: `相关搜索建议: ${sug}`,
+                            url: `https://search.brave.com/search?q=${encodeURIComponent(sug)}`,
+                            source: 'Brave Search'
+                        });
+                    }
+                } catch(e) {
+                    addDebugLog(`Brave Suggest 失败: ${e.message}`, 'info');
+                }
+                return results;
+            }
+
+            async searchSearXNG(query) {
+                const searxUrl = document.getElementById('searxngUrlInput')?.value || localStorage.getItem('searxng_url') || 'https://searx.be';
+                localStorage.setItem('searxng_url', searxUrl);
+                const url = `${searxUrl}/search?q=${encodeURIComponent(query)}&format=json&categories=general`;
+                const resp = await this.robustFetch(url);
+                if (!resp) throw new Error('SearXNG 请求失败');
+                const data = await resp.json();
+                return (data.results || []).slice(0, this.maxResults).map(r => ({
+                    title: r.title || 'Untitled',
+                    snippet: (r.content || '').substring(0, this.snippetLength),
+                    url: r.url || '',
+                    source: r.engine?.[0] || 'SearXNG'
+                }));
+            }
+
+            async searchGoogle(query) {
+                const apiKey = document.getElementById('googleSearchApiKey')?.value || localStorage.getItem('google_search_key') || '';
+                const cx = document.getElementById('googleSearchCx')?.value || localStorage.getItem('google_search_cx') || '';
+                if (!apiKey || !cx) throw new Error('请配置 Google API Key 和 CX');
+                localStorage.setItem('google_search_key', apiKey);
+                localStorage.setItem('google_search_cx', cx);
+                const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&num=${this.maxResults}`;
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), this.timeout);
+                const resp = await fetch(url, { signal: controller.signal });
+                clearTimeout(timer);
+                
+                if (!resp.ok) throw new Error(`Google ${resp.status}`);
+                const data = await resp.json();
+                return (data.items || []).map(item => ({
+                    title: item.title || 'Untitled',
+                    snippet: (item.snippet || '').substring(0, this.snippetLength),
+                    url: item.link || '',
+                    source: item.displayLink || 'Google'
+                }));
+            }
+
+            async searchBing(query) {
+                const apiKey = document.getElementById('bingSearchApiKey')?.value || localStorage.getItem('bing_search_key') || '';
+                if (!apiKey) throw new Error('请配置 Bing API Key');
+                localStorage.setItem('bing_search_key', apiKey);
+                const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=${this.maxResults}`;
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), this.timeout);
+                const resp = await fetch(url, {
+                    signal: controller.signal,
+                    headers: { 'Ocp-Apim-Subscription-Key': apiKey }
+                });
+                clearTimeout(timer);
+                
+                if (!resp.ok) throw new Error(`Bing ${resp.status}`);
+                const data = await resp.json();
+                return (data.webPages?.value || []).map(item => ({
+                    title: item.name || 'Untitled',
+                    snippet: (item.snippet || '').substring(0, this.snippetLength),
+                    url: item.url || '',
+                    source: item.displayUrl || 'Bing'
+                }));
+            }
+
+            formatResultsForPrompt(results) {
+                if (!results || results.length === 0) return '';
+                let context = '🌐 **网络搜索结果** (以下信息来自互联网,请注意核实准确性):\n\n';
+                results.forEach((r, i) => {
+                    context += `[${i + 1}] **${r.title}**\n`;
+                    context += `摘要: ${r.snippet}\n`;
+                    if (r.fullContent) {
+                        context += `详细内容: ${r.fullContent}\n`;
+                    }
+                    context += `来源: ${r.source} | 链接: ${r.url}\n\n`;
+                });
+                context += '---\n请优先基于以上搜索结果回答用户问题。如果搜索结果与问题不相关,可以结合你自己的知识补充。引用信息时请注明来源编号[1][2]等。';
+                return context;
+            }
+
+            formatResultsForDisplay(results) {
+                if (!results || results.length === 0) return '🔍 未找到相关搜索结果';
+                let html = `<div class="web-search-indicator">🌐 搜索到 ${results.length} 条网络结果</div>`;
+                results.forEach(r => {
+                    const hasFullContent = r.fullContent && r.fullContent.length > 0;
+                    html += `<div class="web-search-result-card">
+                        <div class="result-title">🔗 ${r.url ? `<a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a>` : escapeHtml(r.title)}</div>
+                        <div class="result-snippet">${escapeHtml(r.snippet)}${hasFullContent ? `<details><summary>📖 更多内容</summary><div style="margin-top:6px;font-size:12px;color:var(--text-primary);line-height:1.6;">${escapeHtml(r.fullContent)}</div></details>` : ''}</div>
+                        <div class="result-source">📡 ${escapeHtml(r.source)}</div>
+                    </div>`;
+                });
+                return html;
+            }
+        }
+
+        let webSearcher = new WebSearchEngine();
 
         // ==================== 混合摘要引擎 ====================
         class HybridSummarizationEngine {
@@ -10183,6 +10737,8 @@ ${mode === 'merge' ? `• 合并更新: ${skippedCount} 条` : '• 模式: 完�
 
             if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
             loadSettings();
+            // Initialize web search toggle UI
+            if (typeof updateWebSearchToggleUI === 'function') updateWebSearchToggleUI();
             try {
                 await loadAllChats();
             } catch(e) {
@@ -11055,6 +11611,109 @@ ${citationExamples}
             }
             return result.trim();
         }
+        // ==================== AI 网络搜索 UI 控制 ====================
+        function toggleWebSearch() {
+            webSearchEnabled = !webSearchEnabled;
+            localStorage.setItem('webSearch_enabled', webSearchEnabled);
+            updateWebSearchToggleUI();
+            showToast(webSearchEnabled ? '🌐 网络搜索已开启' : '🌐 网络搜索已关闭');
+        }
+
+        function updateWebSearchToggleUI() {
+            const toggle = document.getElementById('webSearchToggle');
+            const label = document.getElementById('webSearchLabel');
+            const settingsToggle = document.getElementById('webSearchEnabledToggle');
+            if (toggle) toggle.classList.toggle('active', webSearchEnabled);
+            if (label) label.textContent = webSearchEnabled ? '搜索✓' : '搜索';
+            if (settingsToggle) settingsToggle.checked = webSearchEnabled;
+        }
+
+        function handleSearchEngineChange() {
+            const sel = document.getElementById('webSearchEngineSelect');
+            if (!sel) return;
+            const engine = sel.value;
+            document.getElementById('searxngUrlRow').style.display = engine === 'searxng' ? 'block' : 'none';
+            document.getElementById('googleApiKeyRow').style.display = engine === 'google' ? 'block' : 'none';
+            document.getElementById('googleCxRow').style.display = engine === 'google' ? 'block' : 'none';
+            document.getElementById('bingApiKeyRow').style.display = engine === 'bing' ? 'block' : 'none';
+        }
+
+        function loadWebSearchSettings() {
+            const toggle = document.getElementById('webSearchEnabledToggle');
+            if (toggle) toggle.checked = webSearchEnabled;
+            const engineSel = document.getElementById('webSearchEngineSelect');
+            if (engineSel) {
+                engineSel.value = webSearchEngine;
+                engineSel.removeEventListener('change', handleSearchEngineChange);
+                engineSel.addEventListener('change', handleSearchEngineChange);
+            }
+            const maxRes = document.getElementById('webSearchMaxResults');
+            if (maxRes) maxRes.value = webSearchMaxResults;
+            const snippetLen = document.getElementById('webSearchSnippetLength');
+            if (snippetLen) snippetLen.value = webSearchSnippetLength;
+            const timeout = document.getElementById('webSearchTimeout');
+            if (timeout) timeout.value = webSearchTimeout;
+            const searxUrl = document.getElementById('searxngUrlInput');
+            if (searxUrl) searxUrl.value = localStorage.getItem('searxng_url') || 'https://searx.be';
+            const googleKey = document.getElementById('googleSearchApiKey');
+            if (googleKey) googleKey.value = localStorage.getItem('google_search_key') || '';
+            const googleCx = document.getElementById('googleSearchCx');
+            if (googleCx) googleCx.value = localStorage.getItem('google_search_cx') || '';
+            const bingKey = document.getElementById('bingSearchApiKey');
+            if (bingKey) bingKey.value = localStorage.getItem('bing_search_key') || '';
+            handleSearchEngineChange();
+        }
+
+        function saveWebSearchSettings() {
+            webSearchEnabled = document.getElementById('webSearchEnabledToggle')?.checked ?? webSearchEnabled;
+            webSearchEngine = document.getElementById('webSearchEngineSelect')?.value || webSearchEngine;
+            webSearchMaxResults = parseInt(document.getElementById('webSearchMaxResults')?.value) || 5;
+            webSearchSnippetLength = parseInt(document.getElementById('webSearchSnippetLength')?.value) || 200;
+            webSearchTimeout = parseInt(document.getElementById('webSearchTimeout')?.value) || 10;
+            localStorage.setItem('webSearch_enabled', webSearchEnabled);
+            localStorage.setItem('webSearch_engine', webSearchEngine);
+            localStorage.setItem('webSearch_maxResults', webSearchMaxResults);
+            localStorage.setItem('webSearch_snippetLength', webSearchSnippetLength);
+            localStorage.setItem('webSearch_timeout', webSearchTimeout);
+            if (webSearcher) webSearcher.updateConfig();
+            updateWebSearchToggleUI();
+        }
+
+        async function performWebSearch(query) {
+            if (!webSearcher) webSearcher = new WebSearchEngine();
+            return await webSearcher.search(query);
+        }
+
+        async function handleWebSearchCommand(args) {
+            if (!args) { showToast('用法: /websearch <关键词>'); return true; }
+            await appendMessageDOM('kb', '<div class="web-search-loading">🌐 正在搜索中<span class="dot-pulse"><span></span><span></span><span></span></span></div>');
+            const results = await performWebSearch(args);
+            // Remove the loading message
+            const loadings = document.querySelectorAll('.web-search-loading');
+            if (loadings.length > 0) loadings[loadings.length - 1].parentElement?.remove();
+            if (!results || results.length === 0) {
+                await appendMessageDOM('kb', '🔍 未找到相关搜索结果');
+            } else {
+                const displayHtml = webSearcher.formatResultsForDisplay(results);
+                await appendMessageDOM('kb', displayHtml);
+            }
+            return true;
+        }
+
+        // ==================== 搜索查询提取 ====================
+        function extractSearchQuery(userText) {
+            // Remove common conversational prefixes to get cleaner search terms
+            let query = userText
+                .replace(/^(请|帮我|你能|可以|我想知道|告诉我|什么是|怎么|如何|为什么|请问|了解|解释一下|介绍一下|搜索|查找|查一下)/, '')
+                .replace(/[？?！!。.，,、]+$/, '')
+                .trim();
+            // If the query is too short after cleaning, use original
+            if (query.length < 2) query = userText;
+            // Limit query length for search APIs
+            if (query.length > 100) query = query.substring(0, 100);
+            return query;
+        }
+
         async function sendMessageOriginal() {
             let retries = 0;
             while ((!memoryManager || !hybridFileSystem || !hybridFileSystem.ready) && retries < 30) {
@@ -11214,14 +11873,66 @@ ${citationExamples}
                 }
             }
 
-            let fullMsgs = [...chat.messages];
-            if (fullMsgs.length && fullMsgs[fullMsgs.length - 1].role === 'user') {
-                fullMsgs[fullMsgs.length - 1].content = finalPrompt;
-                addDebugLog(`📨 API请求: 用户消息 ${finalPrompt.length.toLocaleString()} 字符`, 'info');
+            // ========== AI 网络搜索集成 (多源并行+重试) ==========
+            let webSearchContextForPrompt = null;
+            let webSearchResultsForDisplay = null;
+            if (webSearchEnabled && text) {
+                addDebugLog(`🌐 执行网络搜索: ${text.substring(0, 80)}`, 'info');
+                await appendMessageDOM('kb', '<div class="web-search-loading">🌐 正在搜索网络信息<span class="dot-pulse"><span></span><span></span><span></span></span></div>');
+                
+                let searchSuccess = false;
+                // Try with extracted keywords first, then fall back to raw query
+                const searchQueries = [extractSearchQuery(text), text.substring(0, 100)].filter(q => q && q.trim().length > 0);
+                
+                for (const searchQuery of searchQueries) {
+                    if (searchSuccess) break;
+                    try {
+                        if (!webSearcher) webSearcher = new WebSearchEngine();
+                        webSearcher.updateConfig();
+                        const searchResults = await performWebSearch(searchQuery);
+                        
+                        if (searchResults && searchResults.length > 0) {
+                            // Remove loading indicator
+                            const loadingEls = document.querySelectorAll('.web-search-loading');
+                            if (loadingEls.length > 0) loadingEls[loadingEls.length - 1].parentElement?.remove();
+                            
+                            webSearchContextForPrompt = webSearcher.formatResultsForPrompt(searchResults);
+                            webSearchResultsForDisplay = searchResults;
+                            searchSuccess = true;
+                            addDebugLog(`🌐 搜索完成: ${searchResults.length} 条结果 (查询: "${searchQuery}")`, 'success');
+                            const sources = searchResults.map(r => r.source).filter((v,i,a) => a.indexOf(v) === i).join(', ');
+                            const hasRich = searchResults.filter(r => r.fullContent).length;
+                            await appendMessageDOM('kb', `<div class="web-search-indicator">🌐 检索到 ${searchResults.length} 条网络信息${hasRich ? ` (${hasRich}条含详细内容)` : ''} (来源: ${sources})</div>`);
+                        } else {
+                            addDebugLog(`🌐 查询"${searchQuery}"无结果,尝试下一方案`, 'warning');
+                        }
+                    } catch(e) {
+                        addDebugLog(`🌐 搜索异常(查询: "${searchQuery}"): ${e.message}`, 'error');
+                    }
+                }
+                
+                // Clean up if all attempts failed
+                if (!searchSuccess) {
+                    const loadingEls = document.querySelectorAll('.web-search-loading');
+                    if (loadingEls.length > 0) loadingEls[loadingEls.length - 1].parentElement?.remove();
+                    addDebugLog('🌐 所有搜索方案均失败', 'warning');
+                    await appendMessageDOM('kb', '⚠️ 网络搜索暂不可用,AI将基于自身知识回答');
+                }
             }
             let systemPrompt = getSystemPrompt();
             // === FIX: 修复 RAG context 为 null 导致上下文不注入的 bug ===
-            let prompt = buildPromptWithLimit(fullMsgs, systemPrompt, MAX_CONTEXT_TOKENS, lastRagResults ? { context: ragContextForPrompt, results: lastRagResults } : null);
+            // Combine RAG context and web search context
+            let combinedContext = ragContextForPrompt;
+            if (webSearchContextForPrompt) {
+                if (combinedContext) {
+                    combinedContext = combinedContext + '\n\n' + webSearchContextForPrompt;
+                } else {
+                    combinedContext = webSearchContextForPrompt;
+                }
+            }
+            const combinedResults = lastRagResults || webSearchResultsForDisplay ? 
+                { context: combinedContext, results: [...(lastRagResults || []), ...(webSearchResultsForDisplay || [])] } : null;
+            let prompt = buildPromptWithLimit(chat.messages, systemPrompt, MAX_CONTEXT_TOKENS, combinedResults);
 
             let aiDiv = createMessageElementSync('ai');
             currentStreamingDiv = aiDiv;
@@ -11524,6 +12235,9 @@ ${citationExamples}
             }
 
             switch (cmd) {
+                case 'websearch':
+                case 'ws':
+                    return await handleWebSearchCommand(args);
                 case 'search':
                 case 's':
                     if (!args) { showToast('用法: /search <关键词>'); return true; }
@@ -11615,11 +12329,19 @@ ${citationExamples}
 
 **检索命令**:
 • /search 关键词 - 搜索知识库内容
+• /websearch 关键词 (或 /ws) - 联网搜索实时信息
 • /recall 关键词 - 联想搜索记忆
 • /memories - 查看记忆统计
 • /list - 查看知识库统计
 • /help - 显示帮助
 • /evolution - 查看进化状态
+
+**AI 网络搜索**:
+• 点击聊天顶部🌐按钮开启/关闭自动搜索
+• 开启后AI回答前会自动搜索网络获取实时信息
+• 使用 /websearch 或 /ws 手动搜索
+• 支持 DuckDuckGo(免费)/SearXNG/Google/Bing
+• 在⚙️设置中配置搜索引擎和参数
 
 **标签功能**:
 • 上传文件自动生成标签
