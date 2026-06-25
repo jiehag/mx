@@ -15822,33 +15822,44 @@ async function searchWeb(query, options = {}) {
 
     addDebugLog(`🌐 开始搜索: "${query.substring(0, 80)}..." (${provider}, ${numResults}条)`, 'info');
 
-    try {
-        switch (provider) {
-            case 'duckduckgo': return await searchDuckDuckGo(query, numResults, lang);
-            case 'searxng_public': return await searchSearXNG(query, numResults, lang);
-            case 'google_cse': return await searchGoogleCSE(query, numResults, freshness, lang, country);
-            case 'brave': return await searchBrave(query, numResults, freshness, country);
-            case 'bing': return await searchBing(query, numResults, freshness, lang, country);
-            case 'bing_scrape': return await searchBingScrape(query, numResults);
-            default: return await searchDuckDuckGo(query, numResults, lang);
-        }
-    } catch (error) {
-        addDebugLog(`⚠️ 主引擎(${provider})搜索失败: ${error.message}, 尝试备用引擎`, 'warning');
-        // 级联降级: DuckDuckGo HTML → SearXNG → Bing 抓取
+    // 级联引擎列表 (按优先级): 主引擎 → DuckDuckGo → SearXNG → Bing抓取
+    const cascade = [];
+    // 1. 用户选择的主引擎
+    switch (provider) {
+        case 'duckduckgo': cascade.push(() => searchDuckDuckGo(query, numResults, lang)); break;
+        case 'searxng_public': cascade.push(() => searchSearXNG(query, numResults, lang)); break;
+        case 'google_cse': cascade.push(() => searchGoogleCSE(query, numResults, freshness, lang, country)); break;
+        case 'brave': cascade.push(() => searchBrave(query, numResults, freshness, country)); break;
+        case 'bing': cascade.push(() => searchBing(query, numResults, freshness, lang, country)); break;
+        case 'bing_scrape': cascade.push(() => searchBingScrape(query, numResults)); break;
+        default: cascade.push(() => searchDuckDuckGo(query, numResults, lang)); break;
+    }
+    // 2. 降级链 (与主引擎不同则追加)
+    if (provider !== 'duckduckgo') cascade.push(() => searchDuckDuckGo(query, numResults, lang));
+    if (provider !== 'searxng_public') cascade.push(() => searchSearXNG(query, numResults, lang));
+    cascade.push(() => searchBingScrape(query, numResults));
+
+    let lastError = null;
+    for (let i = 0; i < cascade.length; i++) {
         try {
-            return await searchDuckDuckGo(query, numResults, lang);
-        } catch (e2) {
-            try {
-                return await searchSearXNG(query, numResults, lang);
-            } catch (e3) {
-                try {
-                    return await searchBingScrape(query, numResults);
-                } catch (e4) {
-                    throw new Error(`所有搜索引擎均搜索失败: ${error.message}`);
+            const results = await cascade[i]();
+            if (results && results.length > 0) {
+                if (i === 0) {
+                    addDebugLog(`🌐 主引擎返回 ${results.length} 条结果`, 'success');
+                } else {
+                    addDebugLog(`🌐 降级引擎(${i}) 返回 ${results.length} 条结果`, 'success');
                 }
+                return results;
             }
+            addDebugLog(`🌐 引擎${i}返回空结果, 尝试下一个...`, 'info');
+        } catch (e) {
+            lastError = e;
+            addDebugLog(`🌐 引擎${i}异常: ${e.message}, 尝试下一个...`, 'warning');
         }
     }
+
+    addDebugLog('🌐 所有引擎均未返回结果', 'warning');
+    return [];
 }
 
 async function searchDuckDuckGo(query, numResults = 5, lang = 'zh-CN') {
