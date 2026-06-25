@@ -1043,9 +1043,10 @@
                     <select id="webSearchProvider" class="websearch-provider-select">
                         <option value="duckduckgo">🦆 DuckDuckGo (免费,无需Key)</option>
                         <option value="searxng_public">🔎 SearXNG 公共实例 (免费)</option>
+                        <option value="bing_scrape">🔷 Bing 网页抓取 (免费,大陆可用)</option>
                         <option value="google_cse">🔍 Google 自定义搜索 (需API Key)</option>
                         <option value="brave">🦁 Brave Search (需API Key)</option>
-                        <option value="bing">🔷 Bing Search (需API Key)</option>
+                        <option value="bing">🔷 Bing Search API (需API Key)</option>
                     </select>
                 </div>
                 <div id="webSearchApiKeyRow" style="display:none; margin-bottom:12px;">
@@ -1099,7 +1100,7 @@
                 <div style="font-size:11px;color:var(--text-secondary);margin-top:8px;">
                     💡 开启后AI会自动判断问题是否需要联网搜索(如询问"今天的新闻"、"最新消息"、实时数据等)<br>
                     💡 手动点击聊天框顶部"🌐 联网搜索"按钮可强制开启/关闭<br>
-                    💡 DuckDuckGo 和 SearXNG 免费可用,无需任何 API Key
+                    💡 DuckDuckGo、SearXNG 和 Bing 抓取免费可用，无需API Key
                 </div>
                 <div style="display:flex;gap:8px;margin-top:12px;">
                     <button class="kb-btn" style="flex:1;" onclick="testWebSearch()">🧪 测试搜索</button>
@@ -11321,10 +11322,19 @@ ${citationExamples}
                 }
             }
 
-            // ===== 🌐 联网搜索集成 =====
+            // ===== 🌐 联网搜索集成 (提前创建AI气泡 = 用户立即看到加载状态) =====
             let webSearchContext = null;
             const shouldUseWebSearch = isWebSearchEnabled || (webSearchConfig.autoDetect && isWebSearchRelevant(text));
+
+            // 立即创建AI消息气泡(含"正在思考中..."等待动画)
+            let aiDiv = createMessageElementSync('ai');
+            currentStreamingDiv = aiDiv;
+            currentStreamingFullText = '';
+
             if (shouldUseWebSearch) {
+                const ind = currentStreamingDiv.querySelector('.typing-indicator');
+                const typeText = ind ? ind.querySelector('.typing-text') : null;
+                if (typeText) typeText.textContent = '🌐 正在联网搜索...';
                 try {
                     addDebugLog(`🌐 执行联网搜索: "${text.substring(0, 80)}..."`, 'info');
                     lastSearchResults = await searchWeb(text);
@@ -11333,13 +11343,16 @@ ${citationExamples}
                         webSearchContext = '=== 🌐 联网搜索实时结果 ===\n' + lastSearchResults.map((r, i) =>
                             `[${i+1}] ${r.title}\n${r.snippet}\n来源: ${r.url}`
                         ).join('\n\n') + '\n=== 搜索结果结束 ===';
+                        if (typeText) typeText.textContent = '✅ 搜索完成，正在思考...';
                     } else {
                         addDebugLog('🌐 联网搜索无结果', 'info');
                         lastSearchResults = null;
+                        if (typeText) typeText.textContent = '正在思考中...';
                     }
                 } catch (e) {
                     addDebugLog(`⚠️ 联网搜索失败: ${e.message}, 继续无搜索回答`, 'warning');
                     lastSearchResults = null;
+                    if (typeText) typeText.textContent = '正在思考中...';
                 }
             }
 
@@ -11360,10 +11373,6 @@ ${citationExamples}
                 }
             }
             let prompt = buildPromptWithLimit(fullMsgs, systemPrompt, MAX_CONTEXT_TOKENS, ragCtxObj);
-
-            let aiDiv = createMessageElementSync('ai');
-            currentStreamingDiv = aiDiv;
-            currentStreamingFullText = '';
 
             const onToken = async (token) => {
                 if (currentStreamingDiv) {
@@ -15820,89 +15829,98 @@ async function searchWeb(query, options = {}) {
             case 'google_cse': return await searchGoogleCSE(query, numResults, freshness, lang, country);
             case 'brave': return await searchBrave(query, numResults, freshness, country);
             case 'bing': return await searchBing(query, numResults, freshness, lang, country);
+            case 'bing_scrape': return await searchBingScrape(query, numResults);
             default: return await searchDuckDuckGo(query, numResults, lang);
         }
     } catch (error) {
         addDebugLog(`⚠️ 主引擎(${provider})搜索失败: ${error.message}, 尝试备用引擎`, 'warning');
+        // 级联降级: DuckDuckGo HTML → SearXNG → Bing 抓取
         try {
             return await searchDuckDuckGo(query, numResults, lang);
         } catch (e2) {
             try {
                 return await searchSearXNG(query, numResults, lang);
             } catch (e3) {
-                throw new Error(`所有搜索引擎均搜索失败: ${error.message}`);
+                try {
+                    return await searchBingScrape(query, numResults);
+                } catch (e4) {
+                    throw new Error(`所有搜索引擎均搜索失败: ${error.message}`);
+                }
             }
         }
     }
 }
 
 async function searchDuckDuckGo(query, numResults = 5, lang = 'zh-CN') {
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1&t=ai-chat-app`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const results = [];
+    const fetchOpts = (ms) => ({ signal: AbortSignal.timeout(ms) });
 
+    // 方案1: 直接用 HTML 搜索 (比 API 更稳，较少被墙)
     try {
-        const resp = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (!resp.ok) throw new Error(`DuckDuckGo HTTP ${resp.status}`);
+        addDebugLog('🦆 尝试 DuckDuckGo HTML 搜索...', 'info');
+        const htmlResp = await fetch(
+            `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=${lang === 'zh-CN' ? 'cn-zh' : 'us-en'}`,
+            fetchOpts(10000)
+        );
+        if (htmlResp.ok) {
+            const html = await htmlResp.text();
+            // 提取结果: 标题链接 + 描述片段
+            const linkRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+            const snipRegex = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+            const links = []; const snippets = [];
+            let m;
+            while ((m = linkRegex.exec(html)) !== null) {
+                const rawUrl = m[1];
+                links.push({
+                    url: rawUrl.startsWith('//') ? 'https:' + rawUrl : rawUrl,
+                    title: m[2].replace(/<[^>]*>/g, '').trim()
+                });
+            }
+            while ((m = snipRegex.exec(html)) !== null) {
+                snippets.push(m[1].replace(/<[^>]*>/g, '').trim());
+            }
+            for (let i = 0; i < Math.min(links.length, numResults); i++) {
+                if (links[i].title && links[i].url) {
+                    results.push({
+                        title: links[i].title,
+                        snippet: snippets[i] || '',
+                        url: links[i].url
+                    });
+                }
+            }
+            if (results.length > 0) {
+                addDebugLog(`🦆 DuckDuckGo HTML 返回 ${results.length} 条结果`, 'success');
+                return results;
+            }
+        }
+    } catch (e) { addDebugLog(`DuckDuckGo HTML 搜索失败: ${e.message}`, 'warning'); }
+
+    // 方案2: API (备用)
+    try {
+        addDebugLog('🦆 尝试 DuckDuckGo API...', 'info');
+        const apiUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1&t=ai-chat-app`;
+        const resp = await fetch(apiUrl, fetchOpts(10000));
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
 
-        const results = [];
-
         if (data.AbstractText && data.AbstractText.trim()) {
-            results.push({
-                title: data.Heading || query,
-                snippet: data.AbstractText,
-                url: data.AbstractURL || '',
-                source: data.AbstractSource || 'DuckDuckGo'
-            });
+            results.push({ title: data.Heading || query, snippet: data.AbstractText, url: data.AbstractURL || '', source: data.AbstractSource || 'DuckDuckGo' });
         }
-
         if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
             for (const topic of data.RelatedTopics) {
                 if (results.length >= numResults) break;
                 if (topic.Text && topic.FirstURL) {
-                    results.push({
-                        title: topic.Text.split(' - ')[0] || topic.Text.substring(0, 80),
-                        snippet: topic.Text,
-                        url: topic.FirstURL
-                    });
+                    results.push({ title: topic.Text.split(' - ')[0] || topic.Text.substring(0, 80), snippet: topic.Text, url: topic.FirstURL });
                 }
             }
         }
-
         if (data.Answer && results.length < numResults) {
-            results.push({
-                title: `即时答案: ${query}`,
-                snippet: data.Answer,
-                url: ''
-            });
+            results.push({ title: `即时答案: ${query}`, snippet: data.Answer, url: '' });
         }
+        addDebugLog(`🦆 DuckDuckGo API 返回 ${results.length} 条结果`, 'success');
+    } catch (e) { addDebugLog(`DuckDuckGo API 失败: ${e.message}`, 'warning'); }
 
-        if (results.length === 0) {
-            addDebugLog('DuckDuckGo 无结果, 尝试HTML搜索', 'info');
-            try {
-                const htmlResp = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, { signal: AbortSignal.timeout(6000) });
-                const html = await htmlResp.text();
-                const snippetRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
-                let match;
-                while ((match = snippetRegex.exec(html)) !== null && results.length < numResults) {
-                    const rawUrl = match[1];
-                    const realUrl = rawUrl.startsWith('//') ? 'https:' + rawUrl : rawUrl;
-                    results.push({
-                        title: match[2].replace(/<[^>]*>/g, '').trim(),
-                        snippet: match[3].replace(/<[^>]*>/g, '').trim(),
-                        url: realUrl
-                    });
-                }
-            } catch (e) { addDebugLog(`DuckDuckGo HTML搜索也失败: ${e.message}`, 'warning'); }
-        }
-
-        addDebugLog(`🦆 DuckDuckGo 返回 ${results.length} 条结果`, 'success');
-        return results;
-    } finally {
-        clearTimeout(timeout);
-    }
+    return results;
 }
 
 async function searchSearXNG(query, numResults = 5, lang = 'zh-CN') {
@@ -15917,7 +15935,7 @@ async function searchSearXNG(query, numResults = 5, lang = 'zh-CN') {
     for (const baseUrl of instances) {
         try {
             const url = `${baseUrl}/search?q=${encodeURIComponent(query)}&format=json&categories=general&language=${lang}&safesearch=1`;
-            const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+            const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
             if (!resp.ok) continue;
             const data = await resp.json();
             if (!data.results || data.results.length === 0) continue;
@@ -15933,6 +15951,45 @@ async function searchSearXNG(query, numResults = 5, lang = 'zh-CN') {
     }
     addDebugLog('⚠️ 所有 SearXNG 公共实例均不可用', 'warning');
     return [];
+}
+
+// 最终兜底：Bing 网页抓取（中国大陆可用）
+async function searchBingScrape(query, numResults = 5) {
+    try {
+        const bingUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=zh-cn&cc=cn`;
+        const resp = await fetch(bingUrl, {
+            signal: AbortSignal.timeout(12000),
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36' }
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const html = await resp.text();
+
+        const results = [];
+        const blockRegex = /<li class="b_algo"[^>]*>[\s\S]*?<\/li>/gi;
+        let blockMatch;
+        while ((blockMatch = blockRegex.exec(html)) !== null && results.length < numResults) {
+            const block = blockMatch[0];
+            const titleMatch = block.match(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/i);
+            const snippetMatch = block.match(/<p[^>]*>([\s\S]*?)<\/p>/i) || block.match(/<div class="b_caption"[^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i);
+            if (titleMatch && titleMatch[1] && titleMatch[2]) {
+                const url = titleMatch[1];
+                if (url.startsWith('http')) {
+                    results.push({
+                        title: titleMatch[2].replace(/<[^>]*>/g, '').trim(),
+                        snippet: snippetMatch ? snippetMatch[1].replace(/<[^>]*>/g, '').trim() : '',
+                        url: url
+                    });
+                }
+            }
+        }
+        if (results.length > 0) {
+            addDebugLog(`🔷 Bing 网页抓取返回 ${results.length} 条结果`, 'success');
+        }
+        return results;
+    } catch (e) {
+        addDebugLog(`Bing 网页抓取失败: ${e.message}`, 'warning');
+        return [];
+    }
 }
 
 async function searchGoogleCSE(query, numResults = 5, freshness = '', lang = 'zh-CN', country = 'CN') {
